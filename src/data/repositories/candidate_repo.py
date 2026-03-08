@@ -3,7 +3,10 @@ from sqlalchemy import select, update, delete
 from src.data.models.candidate import Candidate
 import uuid
 from typing import List, Optional
-
+from src.data.models.evaluation import Evaluation
+from src.data.models.transcript import Transcript
+from src.data.models.interview_session import InterviewSession
+from src.data.models.invitation import Invitation
 class CandidateRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -39,5 +42,14 @@ class CandidateRepository:
         return result.scalar_one()
 
     async def delete(self, candidate_id: uuid.UUID):
-        query = delete(Candidate).where(Candidate.id == candidate_id)
-        await self.session.execute(query)
+        sessions_query = select(InterviewSession.id).where(InterviewSession.candidate_id == candidate_id)
+        sessions_result = await self.session.execute(sessions_query)
+        session_ids = [row[0] for row in sessions_result.fetchall()]
+
+        if session_ids:
+            await self.session.execute(delete(Evaluation).where(Evaluation.session_id.in_(session_ids)))
+            await self.session.execute(delete(Transcript).where(Transcript.session_id.in_(session_ids)))
+
+        await self.session.execute(delete(InterviewSession).where(InterviewSession.candidate_id == candidate_id))
+        await self.session.execute(delete(Invitation).where(Invitation.candidate_id == candidate_id))
+        await self.session.execute(delete(Candidate).where(Candidate.id == candidate_id))
