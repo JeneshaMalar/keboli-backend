@@ -5,7 +5,7 @@ import httpx
 import uuid
 from typing import List
 from src.data.models.invitation import Invitation
-
+from src.data.models.candidate import Candidate
 from src.api.rest.dependencies import get_db, get_current_recruiter
 from src.data.models.evaluation import Evaluation
 from src.data.models.interview_session import InterviewSession
@@ -81,17 +81,33 @@ async def get_evaluation_report(
     evaluation = await db.scalar(select(Evaluation).where(Evaluation.session_id == session_id))
     transcript = await db.scalar(select(Transcript).where(Transcript.session_id == session_id))
     
-    if not evaluation and not transcript:
-        # Check if session exists at least
-        session = await db.scalar(select(InterviewSession).where(InterviewSession.id == session_id))
-        if not session:
-            raise HTTPException(status_code=404, detail="Interview session not found")
+    
+    
+    query = (
+        select(InterviewSession, Candidate)
+        .join(Invitation, InterviewSession.invitation_id == Invitation.id)
+        .join(Candidate, Invitation.candidate_id == Candidate.id)
+        .where(InterviewSession.id == session_id)
+    )
+    result = await db.execute(query)
+    row = result.first()
+    
+    if not evaluation and not transcript and not row:
+        raise HTTPException(status_code=404, detail="Interview session not found")
+        
+    session, candidate = row if row else (None, None)
             
     return {
         "evaluation": evaluation,
         "transcript": {
             "full_transcript": transcript.full_transcript if transcript else []
-        }
+        },
+        "candidate": {
+            "id": str(candidate.id),
+            "name": candidate.name,
+            "email": candidate.email,
+            "resume_url": getattr(candidate, 'resume_url', None)
+        } if candidate else None
     }
 
 @router.patch("/report/{session_id}", response_model=EvaluationResponse)

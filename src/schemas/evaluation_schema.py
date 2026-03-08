@@ -35,5 +35,6 @@ class EvaluationUpdate(BaseModel):
 class EvaluationReportResponse(BaseModel):
     evaluation: Optional[EvaluationResponse] = None
     transcript: Optional[Dict[str, Any]] = None
+    candidate: Optional[Dict[str, Any]] = None
 
     model_config = ConfigDict(from_attributes=True)
