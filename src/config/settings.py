@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
+    SENDGRID_API_KEY: str
+    SENDGRID_FROM_EMAIL: str
+    FRONTEND_URL: str = "http://localhost:5173"
+
+
     class Config:
         env_file = ".env"
         extra = "allow"

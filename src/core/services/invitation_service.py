@@ -8,7 +8,7 @@ from src.data.repositories.candidate_repo import CandidateRepository
 from src.data.repositories.assessment_repo import AssessmentRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants.enums import InvitationStatus
-
+from src.core.services.email_service import EmailService
 class InvitationService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -39,6 +39,16 @@ class InvitationService:
         invitation = await self.repo.create(invitation_data)
         await self.session.commit()
         await self.session.refresh(invitation)
+
+        email_service = EmailService()
+        print("Sending email to:", candidate.email)
+        await email_service.send_invitation_email(
+            candidate_email=candidate.email,
+            candidate_name=candidate.name,
+            assessment_title=assessment.title,
+            token=token
+            )
+
         
         return {
             "invitation_id": invitation.id,
