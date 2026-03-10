@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str
     SENDGRID_FROM_EMAIL: str
     FRONTEND_URL: str = "http://localhost:5173"
+    INTERVIEW_AGENT_URL: str = "http://localhost:8001"
 
 
     class Config:

@@ -12,14 +12,101 @@ from src.data.repositories.interview_transcript_repo import InterviewTranscriptR
 from datetime import datetime
 from pydantic import BaseModel
 import httpx
+import asyncio
+import logging
 
 from sqlalchemy.orm import joinedload
+
+logger = logging.getLogger("livekit-routes")
+from src.data.database.session import AsyncSessionLocal
 
 router = APIRouter(prefix="/livekit", tags=["livekit"])
 
 class TranscriptAppend(BaseModel):
     role: str
     content: str
+
+
+async def _start_room_recording(room_name: str, session_id: str):
+    api_key = settings.LIVEKIT_API_KEY
+    api_secret = settings.LIVEKIT_API_SECRET
+    livekit_url = settings.LIVEKIT_URL
+
+    if not api_key or not api_secret or not livekit_url:
+        logger.warning("LiveKit credentials not configured — skipping recording")
+        return
+
+    api_url = livekit_url.replace("wss://", "https://")
+    lkapi = livekit_api.LiveKitAPI(api_url, api_key, api_secret)
+
+    try:
+        # poll for room existence (wait up to 60 seconds)
+        room_found = False
+        for _ in range(30):
+            rooms = await lkapi.room.list_rooms(livekit_api.ListRoomsRequest())
+            if any(r.name == room_name for r in rooms.rooms):
+                room_found = True
+                break
+            await asyncio.sleep(2)
+
+        if not room_found:
+             logger.warning(f"Room {room_name} not found after timeout — skipping recording start")
+             return
+
+        req = livekit_api.RoomCompositeEgressRequest(
+            room_name=room_name,
+            layout="grid",
+            audio_only=False,
+            file_outputs=[
+        livekit_api.EncodedFileOutput(
+            filepath=f"{room_name}/{session_id}.mp4",
+            file_type=livekit_api.EncodedFileType.MP4
+        )
+    ]
+        )
+
+        egress_info = await lkapi.egress.start_room_composite_egress(req)
+        egress_id = egress_info.egress_id
+
+        logger.info(f"Started recording for room {room_name}, egress_id={egress_id}")
+
+        async with AsyncSessionLocal() as db:
+            query = (
+                update(InterviewSession)
+                .where(InterviewSession.id == UUID(session_id))
+                .values(egress_id=egress_id)
+            )
+
+            await db.execute(query)
+            await db.commit()
+
+    except Exception as e:
+        logger.error(f"Failed to start recording for room {room_name}: {e}", exc_info=True)
+
+    finally:
+        await lkapi.aclose()
+
+
+async def _stop_room_recording(egress_id: str):
+    api_key = settings.LIVEKIT_API_KEY
+    api_secret = settings.LIVEKIT_API_SECRET
+    livekit_url = settings.LIVEKIT_URL
+
+    if not api_key or not api_secret or not livekit_url:
+        return
+
+    try:
+        api_url = livekit_url.replace("wss://", "https://")
+        lkapi = livekit_api.LiveKitAPI(api_url, api_key, api_secret)
+
+        await lkapi.egress.stop_egress(livekit_api.StopEgressRequest(egress_id=egress_id))
+        logger.info(f"Stopped recording egress_id={egress_id}")
+
+        await lkapi.aclose()
+
+    except Exception as e:
+        logger.warning(f"Failed to stop recording egress_id={egress_id}: {e}")
+
 
 @router.post("/token")
 async def get_token(
@@ -82,6 +169,12 @@ async def get_token(
                 room=room_name,
             ))
         
+      
+        if not session.egress_id:
+            asyncio.create_task(
+                _start_room_recording(room_name, str(session.id))
+            )
+        
         return {
             "token": token.to_jwt(),
             "url": livekit_url,
@@ -107,6 +200,9 @@ async def complete_session(
     auto_evaluate: bool = True,
     db: AsyncSession = Depends(get_db)
 ):
+    session = await db.get(InterviewSession, session_id)
+    egress_id = session.egress_id if session else None
+
     query = (
         update(InterviewSession)
         .where(InterviewSession.id == session_id)
@@ -114,6 +210,9 @@ async def complete_session(
     )
     await db.execute(query)
     await db.commit()
+
+    if egress_id:
+        asyncio.create_task(_stop_room_recording(egress_id))
 
     if auto_evaluate:
         try:
