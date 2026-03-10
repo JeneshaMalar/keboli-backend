@@ -7,3 +7,4 @@ from src.data.models.invitation import Invitation
 from src.data.models.interview_session import InterviewSession
 from src.data.models.transcript import Transcript
 from src.data.models.evaluation import Evaluation
+from src.data.models.system_log import SystemLog

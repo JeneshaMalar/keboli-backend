@@ -18,5 +18,11 @@ class HiringRecommendation(str, enum.Enum):
     STRONG_HIRE="strong_hire"
     HIRE="hire"
     REJECT="reject"
+
+class LogLevel(str, enum.Enum):
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+    DEBUG = "DEBUG"
     
        

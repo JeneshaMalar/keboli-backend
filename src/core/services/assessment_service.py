@@ -26,7 +26,6 @@ class AssessmentService:
         
         await self.session.refresh(assessment)
         
-        # Trigger skill graph generation in the background via the interview agent
         assessment_id = str(assessment.id)
         asyncio.create_task(self._trigger_skill_graph_generation(assessment_id))
         

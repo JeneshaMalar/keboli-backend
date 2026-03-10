@@ -40,7 +40,6 @@ async def _start_room_recording(room_name: str, session_id: str):
     lkapi = livekit_api.LiveKitAPI(api_url, api_key, api_secret)
 
     try:
-        # poll for room existence (wait up to 60 seconds)
         room_found = False
         for _ in range(30):
             rooms = await lkapi.room.list_rooms(livekit_api.ListRoomsRequest())
