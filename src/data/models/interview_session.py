@@ -28,6 +28,7 @@ class InterviewSession(Base):
     difficulty_level: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     remaining_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
     refresh_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    egress_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     last_heartbeat: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     started_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     completed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)

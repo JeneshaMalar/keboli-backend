@@ -25,7 +25,7 @@ class EmailService:
                 <!-- Header -->
                 <tr>
                 <td style="background:#2563eb;padding:20px;text-align:center;color:white;font-size:22px;font-weight:bold;">
-                    AI Interview Platform
+                   Keboli
                 </td>
                 </tr>
 
