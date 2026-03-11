@@ -92,6 +92,15 @@ class InterviewService:
                 .values(status=InterviewSessionStatus.COMPLETED, completed_at=datetime.utcnow())
             )
             await self.db.execute(query)
+            
+            if self.invitation_id:
+                inv_query = (
+                    update(Invitation)
+                    .where(Invitation.id == self.invitation_id)
+                    .values(status=InvitationStatus.COMPLETED)
+                )
+                await self.db.execute(inv_query)
+                
             await self.db.commit()
         
         if auto_evaluate:

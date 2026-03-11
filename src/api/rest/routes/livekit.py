@@ -208,6 +208,15 @@ async def complete_session(
         .values(status=InterviewSessionStatus.COMPLETED, completed_at=datetime.utcnow())
     )
     await db.execute(query)
+
+    if session and session.invitation_id:
+        inv_query = (
+            update(Invitation)
+            .where(Invitation.id == session.invitation_id)
+            .values(status=InvitationStatus.COMPLETED)
+        )
+        await db.execute(inv_query)
+
     await db.commit()
 
     if egress_id:
