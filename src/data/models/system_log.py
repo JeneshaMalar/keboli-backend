@@ -26,13 +26,14 @@ class SystemLog(Base):
     )
 
     level: Mapped[LogLevel] = mapped_column(
-        PG_ENUM(
-            LogLevel,
-            name="loglevel",
-            create_type=False
-        ),
-        nullable=False
-    )
+    PG_ENUM(
+        LogLevel,
+        name="loglevel",
+        create_type=True,
+        metadata=Base.metadata
+    ),
+    nullable=False
+)
 
     service: Mapped[Optional[str]] = mapped_column(String(100))
     component: Mapped[Optional[str]] = mapped_column(String(100))
