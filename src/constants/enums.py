@@ -8,6 +8,7 @@ class InvitationStatus(str, enum.Enum):
     SENT="sent"
     CLICKED="clicked"
     EXPIRED="expired"
+    COMPLETED="completed"
 
 class InterviewSessionStatus(str, enum.Enum):
     IN_PROGRESS="in_progress"
