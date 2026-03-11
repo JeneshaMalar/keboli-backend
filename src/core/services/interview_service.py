@@ -29,7 +29,7 @@ class InterviewService:
         self.assessment_id = assessment_id
         self.invitation_id = invitation_id
         self.agent_state = None
-        self.agent_url = "http://localhost:8001/chat"
+        self.agent_url = "http://interview_agent:8001/chat"
         
         self.transcript_repo = InterviewTranscriptRepository(db)
 
