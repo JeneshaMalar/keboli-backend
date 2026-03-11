@@ -9,11 +9,11 @@ class LogCreate(BaseModel):
     service: Optional[str] = None
     component: Optional[str] = None
     event_type: Optional[str] = None
-    session_id: Optional[UUID] = None
-    candidate_id: Optional[UUID] = None
-    assessment_id: Optional[UUID] = None
-    user_id: Optional[UUID] = None
-    request_id: Optional[UUID] = None
+    session_id: Optional[Any] = None
+    candidate_id: Optional[Any] = None
+    assessment_id: Optional[Any] = None
+    user_id: Optional[Any] = None
+    request_id: Optional[Any] = None
     ip_address: Optional[str] = None
     user_agent: Optional[str] = None
     message: str
