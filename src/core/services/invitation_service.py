@@ -9,6 +9,9 @@ from src.data.repositories.assessment_repo import AssessmentRepository
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.constants.enums import InvitationStatus
 from src.core.services.email_service import EmailService
+from sqlalchemy import select, update
+from src.data.models.invitation import Invitation
+from src.data.models.candidate import Candidate
 class InvitationService:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -58,6 +61,19 @@ class InvitationService:
         }
 
     async def get_org_invitations(self, org_id: uuid.UUID):
+        candidates_query = select(Candidate.id).where(Candidate.org_id == org_id)
+        update_query = (
+            update(Invitation)
+            .where(
+                Invitation.candidate_id.in_(candidates_query),
+                Invitation.expires_at < datetime.now(timezone.utc),
+                Invitation.status.not_in([InvitationStatus.EXPIRED, InvitationStatus.COMPLETED])
+            )
+            .values(status=InvitationStatus.EXPIRED)
+        )
+        await self.session.execute(update_query)
+        await self.session.commit()
+        
         return await self.repo.get_multi_by_org(org_id)
 
     async def revoke_invitation(self, org_id: uuid.UUID, invitation_id: uuid.UUID):
@@ -86,7 +102,11 @@ class InvitationService:
         if not invitation:
              raise HTTPException(status_code=404, detail="Invalid invitation token")
              
-        if invitation.status == InvitationStatus.EXPIRED or invitation.expires_at < datetime.now(timezone.utc):
+        if invitation.status != InvitationStatus.EXPIRED and invitation.expires_at < datetime.now(timezone.utc):
+             invitation.status = InvitationStatus.EXPIRED
+             await self.session.commit()
+             
+        if invitation.status == InvitationStatus.EXPIRED:
              raise HTTPException(status_code=403, detail="Invitation has expired")
              
         return invitation
