@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     SENDGRID_FROM_EMAIL: str
     FRONTEND_URL: str = "http://localhost:5173"
     INTERVIEW_AGENT_URL: str = "http://localhost:8001"
+    EVALUATION_SERVICE_URL: str = "http://localhost:8002"
 
 
     class Config:
