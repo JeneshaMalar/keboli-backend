@@ -96,3 +96,32 @@ class EmailService:
         except Exception as e:
             logger.error(f"Error sending email via SendGrid: {e}")
             return None
+
+    async def send_interview_completion_email(self, manager_email: str, candidate_name: str, assessment_title: str, session_id: str):
+        report_url = f"{settings.FRONTEND_URL}/evaluation/{session_id}"
+        message = Mail(
+            from_email=settings.SENDGRID_FROM_EMAIL,
+            to_emails=manager_email,
+            subject=f"Interview Completed: {candidate_name} for {assessment_title}",
+            html_content=f"""
+            <div style="background-color:#f3f4f6;padding:40px 0;font-family:Arial,sans-serif;">
+            <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.08);">
+                <tr><td style="background:#2563eb;padding:20px;text-align:center;color:white;font-size:22px;font-weight:bold;">Keboli</td></tr>
+                <tr><td style="padding:30px;color:#333;">
+                    <h2 style="margin-top:0;">Good news!</h2>
+                    <p style="font-size:16px;line-height:1.6;"><strong>{candidate_name}</strong> has just completed their AI interview for the <strong>{assessment_title}</strong> assessment.</p>
+                    <p style="font-size:16px;line-height:1.6;">You can view their detailed evaluation report and interview transcript by clicking the link below:</p>
+                    <div style="text-align:center;margin:30px 0;">
+                    <a href="{report_url}" style="background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;display:inline-block;">View Evaluation Report</a>
+                    </div>
+                </td></tr>
+            </table>
+            </div>
+            """
+        )
+        try:
+            response = self.sg.send(message)
+            return response.status_code
+        except Exception as e:
+            logger.error(f"Error sending email via SendGrid: {e}")
+            return None
