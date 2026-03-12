@@ -14,8 +14,11 @@ from pydantic import BaseModel
 import httpx
 import asyncio
 import logging
-
+from src.config.settings import settings
 from sqlalchemy.orm import joinedload
+from src.data.models.candidate import Candidate
+from src.data.models.assessment import Assessment
+from src.data.models.recruiter import Recruiter
 
 logger = logging.getLogger("livekit-routes")
 from src.data.database.session import AsyncSessionLocal
@@ -216,6 +219,36 @@ async def complete_session(
             .values(status=InvitationStatus.COMPLETED)
         )
         await db.execute(inv_query)
+        
+        query_info = (
+            select(Candidate.name, Assessment.title, Recruiter.email, Recruiter.id)
+            .select_from(Invitation)
+            .where(Invitation.id == session.invitation_id)
+            .join(Candidate, Candidate.id == Invitation.candidate_id)
+            .join(Assessment, Assessment.id == Invitation.assessment_id)
+            .join(Recruiter, Recruiter.org_id == Assessment.org_id)
+        )
+        result = await db.execute(query_info)
+        managers = result.all()
+        
+        if managers:
+            from src.core.services.email_service import EmailService
+            from src.data.models.notification import Notification
+            email_svc = EmailService()
+            candidate_name = managers[0][0]
+            assessment_title = managers[0][1]
+            for row in managers:
+                manager_email = row[2]
+                recruiter_id = row[3]
+                asyncio.create_task(email_svc.send_interview_completion_email(
+                    manager_email, candidate_name, assessment_title, str(session.id)
+                ))
+                notif = Notification(
+                    recruiter_id=recruiter_id,
+                    message=f"{candidate_name} has completed the {assessment_title} assessment.",
+                    target_path=f"/evaluation/{session.id}"
+                )
+                db.add(notif)
 
     await db.commit()
 
@@ -223,12 +256,15 @@ async def complete_session(
         asyncio.create_task(_stop_room_recording(egress_id))
 
     if auto_evaluate:
-        try:
-            async with httpx.AsyncClient() as client:
-                url = f"http://localhost:8002/api/v1/evaluate/{session_id}"
-                await client.post(url, timeout=300.0)
-        except Exception as e:
-            print(f"Failed to trigger evaluation agent: {e}")
+        async def _trigger_evaluation():
+            try:
+                async with httpx.AsyncClient() as client:
+                    url = f"{settings.EVALUATION_SERVICE_URL}/api/v1/evaluate/{session_id}"
+                    await client.post(url, timeout=300.0)
+            except Exception as e:
+                print(f"Failed to trigger evaluation agent: {e}")
+                
+        asyncio.create_task(_trigger_evaluation())
 
     return {"status": "success"}
 
@@ -248,3 +284,20 @@ async def heartbeat(
     await db.execute(query)
     await db.commit()
     return {"status": "success"}
+
+@router.get("/session/{session_id}/status")
+async def get_session_status(
+    session_id: UUID,
+    db: AsyncSession = Depends(get_db)
+):
+    """Check if a session has been completed by the backend.
+    Frontend polls this as a fallback when the LiveKit data message might not arrive."""
+    session = await db.get(InterviewSession, session_id)
+    if not session:
+        return {"status": "not_found"}
+    
+    return {
+        "status": session.status.value if hasattr(session.status, 'value') else str(session.status),
+        "is_completed": session.status == InterviewSessionStatus.COMPLETED,
+        "completed_at": session.completed_at.isoformat() if session.completed_at else None,
+    }
