@@ -21,6 +21,7 @@ from sqlalchemy import update
 from sqlalchemy.orm import selectinload
 from src.constants.enums import InvitationStatus
 from sqlalchemy.orm import joinedload
+from src.config.settings import settings
 class InterviewService:
 
     def __init__(self, db, session_id: UUID, assessment_id: str, invitation_id: Optional[UUID] = None):
@@ -70,7 +71,7 @@ class InterviewService:
     async def _trigger_evaluation(self):
         try:
             async with httpx.AsyncClient() as client:
-                url = f"http://localhost:8002/api/v1/evaluate/{self.session_id}"
+                url = f"{settings.EVALUATION_SERVICE_URL}/api/v1/evaluate/{self.session_id}"
                 print(f"Triggering evaluation at {url}...")
                 response = await client.post(url, timeout=300.0)
                 response.raise_for_status()
@@ -277,7 +278,7 @@ class InterviewService:
     async def on_disconnect(self):
         print(f"[DEBUG] Disconnect detected for session {self.session_id}")
         if not self.is_completed:
-            await self.complete_session(auto_evaluate=False)
+            await self.complete_session(auto_evaluate=True)
 
     def close(self):
         if self.heartbeat_task:

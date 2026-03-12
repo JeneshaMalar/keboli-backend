@@ -68,11 +68,16 @@ async def get_org_assessments(
 
 @router.get("/{assessment_id}", response_model=AssessmentResponse)
 async def get_assessment(
-    assessment_id: uuid.UUID,
+    assessment_id: str,
     db: AsyncSession = Depends(get_db)
 ):
+    try:
+        valid_id = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+        
     service = AssessmentService(db)
-    assessment = await service.repo.get_by_id(assessment_id)
+    assessment = await service.repo.get_by_id(valid_id)
     if not assessment:
         raise HTTPException(status_code=404, detail="Assessment not found")
     return assessment
@@ -145,11 +150,16 @@ class SkillGraphUpdate(BaseModel):
 
 @router.patch("/{assessment_id}/skills")
 async def update_assessment_skills_internal(
-    assessment_id: uuid.UUID,
+    assessment_id: str,
     payload: SkillGraphUpdate,
     db: AsyncSession = Depends(get_db)
 ):
+    try:
+        valid_id = uuid.UUID(assessment_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+        
     service = AssessmentService(db)
-    result = await service.repo.update(assessment_id, skill_graph=payload.skill_graph)
+    result = await service.repo.update(valid_id, skill_graph=payload.skill_graph)
     await service.session.commit()
     return result

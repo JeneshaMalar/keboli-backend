@@ -13,6 +13,9 @@ from src.data.models.transcript import Transcript
 from src.data.models.assessment import Assessment
 from src.schemas.evaluation_schema import EvaluationCreate, EvaluationResponse, EvaluationUpdate, EvaluationReportResponse
 from src.data.models.recruiter import Recruiter
+from src.constants.enums import InterviewSessionStatus, InvitationStatus
+from sqlalchemy import update
+from src.config.settings import settings
 
 router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
@@ -20,10 +23,8 @@ async def resolve_session_id(session_id: str, db: AsyncSession) -> uuid.UUID:
     try:
         return uuid.UUID(session_id)
     except (ValueError, TypeError):
-        # Maybe it's an invitation token?
         invitation = await db.scalar(select(Invitation).where(Invitation.token == session_id))
         if invitation:
-            # Get the most recent session
             query = select(InterviewSession).where(InterviewSession.invitation_id == invitation.id).order_by(InterviewSession.created_at.desc())
             session = await db.scalar(query)
             if session:
@@ -71,6 +72,21 @@ async def post_evaluation_report(
     db: AsyncSession = Depends(get_db)
 ):
     target_id = await resolve_session_id(session_id, db)
+    
+    session = await db.get(InterviewSession, target_id)
+    if session and session.status != InterviewSessionStatus.COMPLETED:
+        await db.execute(
+            update(InterviewSession)
+            .where(InterviewSession.id == target_id)
+            .values(status=InterviewSessionStatus.COMPLETED)
+        )
+        if session.invitation_id:
+            await db.execute(
+                update(Invitation)
+                .where(Invitation.id == session.invitation_id)
+                .values(status=InvitationStatus.COMPLETED)
+            )
+    
     existing = await db.scalar(select(Evaluation).where(Evaluation.session_id == target_id))
     
     if existing:
@@ -155,7 +171,7 @@ async def trigger_evaluation(
     target_id = await resolve_session_id(session_id, db)
     try:
         async with httpx.AsyncClient() as client:
-            url = f"http://localhost:8002/api/v1/evaluate/{target_id}"
+            url = f"{settings.EVALUATION_SERVICE_URL}/api/v1/evaluate/{target_id}"
             response = await client.post(url, timeout=300.0)
             response.raise_for_status()
             return {"status": "success", "message": "Evaluation triggered"}
