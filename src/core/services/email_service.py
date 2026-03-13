@@ -104,19 +104,65 @@ class EmailService:
             to_emails=manager_email,
             subject=f"Interview Completed: {candidate_name} for {assessment_title}",
             html_content=f"""
-            <div style="background-color:#f3f4f6;padding:40px 0;font-family:Arial,sans-serif;">
-            <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:white;border-radius:10px;overflow:hidden;box-shadow:0 4px 10px rgba(0,0,0,0.08);">
-                <tr><td style="background:#2563eb;padding:20px;text-align:center;color:white;font-size:22px;font-weight:bold;">Keboli</td></tr>
-                <tr><td style="padding:30px;color:#333;">
-                    <h2 style="margin-top:0;">Good news!</h2>
-                    <p style="font-size:16px;line-height:1.6;"><strong>{candidate_name}</strong> has just completed their AI interview for the <strong>{assessment_title}</strong> assessment.</p>
-                    <p style="font-size:16px;line-height:1.6;">You can view their detailed evaluation report and interview transcript by clicking the link below:</p>
-                    <div style="text-align:center;margin:30px 0;">
-                    <a href="{report_url}" style="background:#2563eb;color:white;padding:14px 28px;text-decoration:none;border-radius:6px;font-size:16px;font-weight:bold;display:inline-block;">View Evaluation Report</a>
-                    </div>
-                </td></tr>
-            </table>
-            </div>
+           <div style="background-color:#f3f6fb;padding:50px 0;font-family:Arial,Helvetica,sans-serif;">
+  <table align="center" width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 6px 18px rgba(0,0,0,0.08);">
+    
+    <!-- Header -->
+    <tr>
+      <td style="background:linear-gradient(90deg,#2563eb,#1e40af);padding:22px;text-align:center;color:#ffffff;font-size:24px;font-weight:700;letter-spacing:1px;">
+        Keboli
+      </td>
+    </tr>
+
+    <!-- Body -->
+    <tr>
+      <td style="padding:35px 40px;color:#374151;">
+        
+        <h2 style="margin-top:0;font-size:22px;color:#111827;">Interview Completed 🎉</h2>
+
+        <p style="font-size:16px;line-height:1.7;margin:18px 0;">
+          Great news! <strong>{candidate_name}</strong> has successfully completed their 
+          AI-powered interview for the <strong>{assessment_title}</strong> assessment.
+        </p>
+
+        <p style="font-size:16px;line-height:1.7;margin:18px 0;">
+          You can now review the candidate's performance, including their detailed 
+          evaluation results and full interview transcript.
+        </p>
+
+        <!-- Button -->
+        <div style="text-align:center;margin:35px 0;">
+          <a href="{report_url}" 
+             style="background:#2563eb;color:#ffffff;padding:14px 32px;text-decoration:none;border-radius:8px;font-size:16px;font-weight:600;display:inline-block;box-shadow:0 4px 10px rgba(37,99,235,0.35);">
+            View Evaluation Report
+          </a>
+        </div>
+
+        <p style="font-size:14px;color:#6b7280;line-height:1.6;margin-top:25px;">
+          If the button above does not work, copy and paste the following link into your browser:
+        </p>
+
+        <p style="font-size:14px;color:#2563eb;word-break:break-all;">
+          {report_url}
+        </p>
+
+      </td>
+    </tr>
+
+    <!-- Divider -->
+    <tr>
+      <td style="border-top:1px solid #e5e7eb;"></td>
+    </tr>
+
+    <!-- Footer -->
+    <tr>
+      <td style="padding:20px 40px;text-align:center;font-size:13px;color:#9ca3af;">
+        © 2026 Keboli. All rights reserved.
+      </td>
+    </tr>
+
+  </table>
+</div>
             """
         )
         try:
