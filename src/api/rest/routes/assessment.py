@@ -137,7 +137,6 @@ async def delete_assessment(
     if not assessment or assessment.org_id != current_user.org_id:
         raise HTTPException(status_code=404, detail="Assessment not found")
     
-    # Soft delete: mark as inactive
     updated = await service.repo.update(assessment_id, is_active=False)
     await db.commit()
     await db.refresh(updated)

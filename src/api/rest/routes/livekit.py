@@ -126,9 +126,7 @@ async def get_token(
         invitation.status = InvitationStatus.CLICKED
         await db.commit()
 
-    # --- FIX: Check for ANY existing session for this invitation, not just IN_PROGRESS.
-    # Previously, only IN_PROGRESS sessions were matched, so a COMPLETED session would
-    # be missed and a duplicate would be created on every subsequent page open.
+   
     query = select(InterviewSession).where(
         InterviewSession.invitation_id == invitation.id,
     ).order_by(InterviewSession.created_at.desc()).limit(1)
@@ -136,16 +134,12 @@ async def get_token(
     session = result.scalar_one_or_none()
 
     if session:
-        # The invitation already has an interview session.
         if session.status == InterviewSessionStatus.COMPLETED:
-            # Interview is done — do not allow creating another session.
             raise HTTPException(
                 status_code=409,
                 detail="This interview has already been completed and cannot be restarted."
             )
-        # Session exists and is IN_PROGRESS — reuse it.
     else:
-        # No session at all yet — create one.
         duration_mins = 60
         if invitation.assessment:
             duration_mins = invitation.assessment.duration_minutes
