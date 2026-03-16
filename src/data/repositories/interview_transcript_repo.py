@@ -23,13 +23,11 @@ class InterviewTranscriptRepository:
                 await self.db.commit()
                 await self.db.refresh(transcript)
                 
-                # If we need it for update, fetch it again with lock after creation
                 if for_update:
                     stmt = select(InterviewTranscript).where(InterviewTranscript.session_id == session_id).with_for_update()
                     result = await self.db.execute(stmt)
                     transcript = result.scalar_one_or_none()
             except Exception:
-                # If another process created it simultaneously, just fetch it
                 await self.db.rollback()
                 stmt = select(InterviewTranscript).where(InterviewTranscript.session_id == session_id)
                 if for_update:
