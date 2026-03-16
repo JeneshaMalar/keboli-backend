@@ -12,15 +12,15 @@ class Settings(BaseSettings):
     GROQ_MODEL: str
     FRONTEND_ORIGIN: str = "http://localhost:5173"
     COOKIE_NAME: str = "access_token"
-    COOKIE_SECURE: bool = False
-    COOKIE_SAMESITE: str = "lax"
+    COOKIE_SECURE: bool = True
+    COOKIE_SAMESITE: str = "none"
     COOKIE_DOMAIN: str | None = None
  
     LIVEKIT_URL: str | None = None
     LIVEKIT_API_KEY: str | None = None
     LIVEKIT_API_SECRET: str | None = None
  
-    CORS_ORIGINS: list[str] = ["http://localhost:5173", "http://localhost:8000", "http://127.0.0.1:8000","http://localhost:8002","http://localhost:8001"]
+    CORS_ORIGINS: list[str] = ["https://keboli-frontend-717740758627.us-east1.run.app", "https://evaluation-agent-717740758627.us-east1.run.app", "https://keboli-interview-agent-717740758627.us-east1.run.app"]
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]

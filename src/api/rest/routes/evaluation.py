@@ -72,7 +72,7 @@ async def post_evaluation_report(
     db: AsyncSession = Depends(get_db)
 ):
     target_id = await resolve_session_id(session_id, db)
-    
+    print(f"Resolved session ID: {target_id}")
     session = await db.get(InterviewSession, target_id)
     if session and session.status != InterviewSessionStatus.COMPLETED:
         await db.execute(
@@ -100,6 +100,7 @@ async def post_evaluation_report(
         session_id=target_id,
         **payload.model_dump()
     )
+    print("Creating new evaluation: ", evaluation)
     db.add(evaluation)
     await db.commit()
     await db.refresh(evaluation)
@@ -111,9 +112,13 @@ async def get_evaluation_report(
     db: AsyncSession = Depends(get_db),
     current_user: Recruiter = Depends(get_current_recruiter)
 ):
+    print("Logging start")
     target_id = await resolve_session_id(session_id, db)
+    print(f"Target ID: {target_id}")
     evaluation = await db.scalar(select(Evaluation).where(Evaluation.session_id == target_id))
+    print(f"Fetched evaluation: {evaluation}")
     transcript = await db.scalar(select(Transcript).where(Transcript.session_id == target_id))
+    print(f"Fetched transcript: {transcript}")
     
     query = (
         select(InterviewSession, Candidate)
@@ -121,14 +126,18 @@ async def get_evaluation_report(
         .join(Candidate, Invitation.candidate_id == Candidate.id)
         .where(InterviewSession.id == target_id)
     )
+    print(f"Executing candidate query for session {query}")
     result = await db.execute(query)
+    print(f"Candidate query result: {result}")
     row = result.first()
     
     if not evaluation and not transcript and not row:
         raise HTTPException(status_code=404, detail="Interview session not found")
         
     session, candidate = row if row else (None, None)
-            
+    print("Updated evaluation:")
+    print(evaluation)
+    print("Logging end")      
     return {
         "evaluation": evaluation,
         "transcript": {
@@ -160,6 +169,8 @@ async def update_evaluation_report(
     
     await db.commit()
     await db.refresh(evaluation)
+    print("Updated evaluation:")
+    print(evaluation)
     return evaluation
 
 @router.post("/trigger/{session_id}")

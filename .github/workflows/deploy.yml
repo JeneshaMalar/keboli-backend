@@ -48,6 +48,8 @@ jobs:
     permissions:
       id-token: write
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
       - name: Authenticate to Google Cloud
         id: auth
         uses: google-github-actions/auth@v2
@@ -55,3 +57,4 @@ jobs:
           workload_identity_provider: projects/717740758627/locations/global/workloadIdentityPools/githubinterns/providers/github-provider
           service_account: gwx-gh-sa-01@gwx-internship-01.iam.gserviceaccount.com
           token_format: 'access_token'
+      
