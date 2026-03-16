@@ -11,7 +11,7 @@ from src.data.models.assessment import Assessment
 from src.handlers.audio.ffmpeg_pipe import PCMTranscoder
 from src.handlers.audio.deepgram_tts import deepgram_tts_bytes
 from src.handlers.audio.deepgram_stt import DeepgramSTT
-from src.core.ai.llm.groq_client import GroqLLMClient 
+# from src.core.ai.llm.groq_client import GroqLLMClient 
 from src.data.repositories.interview_transcript_repo import InterviewTranscriptRepository
 from src.data.models.interview_session import InterviewSession
 from src.data.models.invitation import Invitation

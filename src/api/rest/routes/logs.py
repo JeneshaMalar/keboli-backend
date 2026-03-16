@@ -15,7 +15,6 @@ async def create_log(log_data: LogCreate, db: AsyncSession = Depends(get_db)):
     try:
         log_dict = log_data.model_dump()
         
-        # Sanitize UUID fields
         uuid_fields = ['session_id', 'candidate_id', 'assessment_id', 'user_id', 'request_id']
         
         if log_dict.get('details') is None:
@@ -25,11 +24,9 @@ async def create_log(log_data: LogCreate, db: AsyncSession = Depends(get_db)):
             val = log_dict.get(field)
             if val:
                 try:
-                    # Check if it's already a UUID or can be converted
                     if not isinstance(val, uuid.UUID):
                         log_dict[field] = uuid.UUID(str(val))
                 except (ValueError, TypeError):
-                    # Not a valid UUID, move to details and set field to None
                     log_dict['details'][f'original_{field}'] = str(val)
                     log_dict[field] = None
         
