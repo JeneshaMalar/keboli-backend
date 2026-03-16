@@ -43,7 +43,6 @@ class CandidateService:
         
         try:
             content = await file.read()
-            # Handle potential BOM (Byte Order Mark) from some CSV editors
             decoded = content.decode('utf-8-sig')
             f = io.StringIO(decoded)
             reader = csv.DictReader(f)
@@ -52,27 +51,24 @@ class CandidateService:
             errors = []
             
             for row_num, row in enumerate(reader, 1):
-                # Make header lookups case-insensitive
                 row_data = {k.lower().strip(): v for k, v in row.items() if k}
                 
                 email = row_data.get('email')
                 name = row_data.get('name') or row_data.get('full name')
                 
                 if not email or not name:
-                    if not any(row_data.values()): continue # Skip empty rows
+                    if not any(row_data.values()): continue 
                     errors.append(f"Row {row_num}: Missing email or name. (Fields found: {list(row_data.keys())})")
                     continue
                 
                 email = email.strip()
                 name = name.strip()
                 
-                # Check for duplicate in the same organization
                 existing = await self.repo.get_by_email_and_org(email, org_id)
                 if existing:
                     errors.append(f"Row {row_num}: Candidate with email {email} already exists")
                     continue
                 
-                # Check for duplicates in the current list being processed
                 if any(c["email"] == email for c in candidates_to_create):
                     errors.append(f"Row {row_num}: Duplicate email {email} found in CSV file")
                     continue

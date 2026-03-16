@@ -8,7 +8,7 @@ from src.api.middleware.logging import LoggingMiddleware
 
 app = FastAPI() 
 
-app.add_middleware(LoggingMiddleware)
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -17,6 +17,7 @@ app.add_middleware(
     allow_methods=settings.CORS_ALLOW_METHODS,
     allow_headers=settings.CORS_ALLOW_HEADERS,
 )
+app.add_middleware(LoggingMiddleware)
 
 app.include_router(api_router, prefix="/api")
 
