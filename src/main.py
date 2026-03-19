@@ -1,13 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
 from src.api.rest.app import api_router
 from src.config.settings import settings
 from src.observability.logging.logger import logger
 from src.api.middleware.logging import LoggingMiddleware
 
 app = FastAPI() 
-
 
 
 app.add_middleware(

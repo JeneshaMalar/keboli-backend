@@ -13,6 +13,10 @@ from sqlalchemy import select, update
 from src.data.models.invitation import Invitation
 from src.data.models.candidate import Candidate
 class InvitationService:
+    """
+    Service responsible for managing the candidate invitation lifecycle,
+    including secure token generation, expiration tracking, and email dispatch.
+    """
     def __init__(self, session: AsyncSession):
         self.session = session
         self.repo = InvitationRepository(session)
@@ -20,6 +24,21 @@ class InvitationService:
         self.assessment_repo = AssessmentRepository(session)
 
     async def create_invitation(self, org_id: uuid.UUID, candidate_id: uuid.UUID, assessment_id: uuid.UUID, expires_in_hours: int = 48):
+        """
+        Generate a secure invitation token and notify the candidate via email.
+
+        Args:
+            org_id: The organization ID owning the candidate and assessment
+            candidate_id: UUID of the candidate to invite
+            assessment_id: UUID of the assessment to assign
+            expires_in_hours: Duration until the invitation token becomes invalid
+
+        Raises:
+            HTTPException: If the candidate or assessment is not found or belongs to another org
+
+        Returns:
+            A dictionary containing the invitation ID, secure token, and expiration timestamp
+        """
         candidate = await self.candidate_repo.get_by_id(candidate_id)
         if not candidate or candidate.org_id != org_id:
             raise HTTPException(status_code=404, detail="Candidate not found")
@@ -44,7 +63,6 @@ class InvitationService:
         await self.session.refresh(invitation)
 
         email_service = EmailService()
-        print("Sending email to:", candidate.email)
         await email_service.send_invitation_email(
             candidate_email=candidate.email,
             candidate_name=candidate.name,
@@ -61,6 +79,15 @@ class InvitationService:
         }
 
     async def get_org_invitations(self, org_id: uuid.UUID):
+        """
+        Retrieve all invitations for an organization, automatically marking expired ones.
+
+        Args:
+            org_id: Unique identifier of the organization
+
+        Returns:
+            A list of all invitations associated with the organization's candidates
+        """
         candidates_query = select(Candidate.id).where(Candidate.org_id == org_id)
         update_query = (
             update(Invitation)
@@ -77,6 +104,19 @@ class InvitationService:
         return await self.repo.get_multi_by_org(org_id)
 
     async def revoke_invitation(self, org_id: uuid.UUID, invitation_id: uuid.UUID):
+        """
+        Manually expire an invitation to prevent further access.
+
+        Args:
+            org_id: Organization ID for authorization check
+            invitation_id: UUID of the invitation to revoke
+
+        Raises:
+            HTTPException: If invitation is not found or candidate belongs to another org
+
+        Returns:
+            A success message and the affected invitation ID
+        """
         invitation = await self.repo.get_by_id(invitation_id)
         if not invitation:
             raise HTTPException(status_code=404, detail="Invitation not found")
@@ -91,6 +131,19 @@ class InvitationService:
         return {"message": "Invitation revoked", "invitation_id": invitation_id}
 
     async def validate_token(self, token: str):
+        """
+        Verify if a provided token is valid, active, and not yet expired.
+
+        Args:
+            token: The secure URL-safe token (or UUID string) to validate
+
+        Raises:
+            HTTPException (404): If the token does not exist
+            HTTPException (403): If the invitation has expired
+
+        Returns:
+            The validated Invitation object
+        """
         invitation = await self.repo.get_by_token(token)
         if not invitation:
             try:
