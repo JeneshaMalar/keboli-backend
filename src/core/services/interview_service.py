@@ -23,7 +23,11 @@ from src.constants.enums import InvitationStatus
 from sqlalchemy.orm import joinedload
 from src.config.settings import settings
 class InterviewService:
-
+    """This service manages the lifecycle of an interview session, including handling WebSocket communication, 
+    managing the interview state, and interacting with the database to store transcripts and session information.
+    This is currently not used in this application,because webrtc is used for real-time communication instead of websockets. 
+    However, it can be adapted for use with websockets if needed in the future."""
+    
     def __init__(self, db, session_id: UUID, assessment_id: str, invitation_id: Optional[UUID] = None):
         self.db = db
         self.session_id = session_id
@@ -45,6 +49,15 @@ class InterviewService:
         self.db_lock = asyncio.Lock()
 
     async def _get_agent_response(self, last_message: Optional[str] = None) -> tuple[str, bool]:
+        """
+        Communicate with the AI agent to get the next interview question or response.
+
+        Args:
+            last_message: The transcribed text from the candidate, if any.
+
+        Returns:
+            A tuple containing (response_text, is_session_completed_flag).
+        """
         payload = {
             "session_id": str(self.session_id),
             "assessment_id": str(self.assessment_id),
@@ -60,7 +73,6 @@ class InterviewService:
                 self.agent_state = data.get("state")
                 return data.get("response", ""), data.get("is_completed", False)
         except Exception as e:
-            print(f"Agent error: {e}")
             if last_message:
                 try:
                     return await self.llm.generate(last_message), False
@@ -69,17 +81,35 @@ class InterviewService:
             return "Hello, I am having some trouble connecting to my brain. Let me try again later.", False
 
     async def _trigger_evaluation(self):
+        """
+        Notify the evaluation service to start analyzing the completed interview.
+
+        Args:
+            None
+
+        Raises:
+            httpx.HTTPStatusError: If the evaluation service returns a non-200 response.
+
+        Returns:
+            None
+        """
         try:
             async with httpx.AsyncClient() as client:
                 url = f"{settings.EVALUATION_SERVICE_URL}/api/v1/evaluate/{self.session_id}"
-                print(f"Triggering evaluation at {url}...")
                 response = await client.post(url, timeout=300.0)
                 response.raise_for_status()
-                print("Evaluation agent triggered successfully")
         except Exception as e:
-            print(f"Failed to trigger evaluation agent: {e}")
-
+            logger.error(f"Failed to trigger evaluation for session {self.session_id}: {e}")
     async def complete_session(self, auto_evaluate: bool = True):
+        """
+        Finalize the interview session, update statuses, and stop background tasks.
+
+        Args:
+            auto_evaluate: Whether to automatically trigger the evaluation service.
+
+        Returns:
+            None
+        """
         if self.is_completed:
             return
         
@@ -107,12 +137,17 @@ class InterviewService:
         if auto_evaluate:
             asyncio.create_task(self._trigger_evaluation())
         else:
-            print(f"[DEBUG] Session {self.session_id} ended partialy/disconnected. Admin needs to click generate report.")
-
+            logger.info(f"Session {self.session_id} marked as completed without auto-evaluation.")
     async def _heartbeat_loop(self):
-        
-        
-        print(f"[DEBUG] Starting heartbeat loop for session {self.session_id}")
+        """
+        Background loop to update session 'last_heartbeat' and decrement remaining time.
+
+        Args:
+            None
+
+        Returns:
+            None
+        """
         try:
             while not self.is_completed:
                 await asyncio.sleep(5)
@@ -130,18 +165,24 @@ class InterviewService:
         except asyncio.CancelledError:
             pass
         except Exception as e:
-            print(f"[ERROR] Heartbeat error: {e}")
-
+            logger.error(f"Error in heartbeat loop for session {self.session_id}: {e}")
     async def start(self, ws: WebSocket):
-        
-
-        print(f"[DEBUG] InterviewService.start for session {self.session_id}")
-
+        """
+        Start an interview session.
+  
+        Args:
+            ws: WebSocket connection for real-time communication
+  
+        Raises:
+            HTTPException: If session initialization fails
+  
+        Returns:
+            None (streams responses via WebSocket)
+        """
         async with self.db_lock:
             session = await self.db.scalar(select(InterviewSession).where(InterviewSession.id == self.session_id))
             
             if not session:
-                print(f"[DEBUG] Session {self.session_id} not found. Creating session...")
                 
                 duration_mins = 60
                 candidate_id = None
@@ -160,14 +201,14 @@ class InterviewService:
                         
                         invitation.status = InvitationStatus.CLICKED
                     else:
-                        print(f"[DEBUG] Error: Invitation {self.invitation_id} not found.")
+                        logger.warning(f"Invitation {self.invitation_id} not found for session {self.session_id}")
                 
                 elif self.assessment_id:
                     assessment = await self.db.get(Assessment, UUID(self.assessment_id) if isinstance(self.assessment_id, str) else self.assessment_id)
                     if assessment:
                         duration_mins = assessment.duration_minutes
                     else:
-                        print(f"[DEBUG] Error: Assessment {self.assessment_id} not found.")
+                        logger.warning(f"Assessment {self.assessment_id} not found for session {self.session_id}")
                 
                 if not candidate_id:
                     candidate_id = uuid.uuid4() 
@@ -181,17 +222,13 @@ class InterviewService:
                     started_at=datetime.utcnow()
                 )
                 self.db.add(session)
-                print(f"[DEBUG] Created new interview session with {duration_mins} mins duration: {self.session_id}")
             elif session:
-                print(f"[DEBUG] Session {self.session_id} exists. Updating status to IN_PROGRESS.")
                 session.status = InterviewSessionStatus.IN_PROGRESS
                 if not session.started_at:
                     session.started_at = datetime.utcnow()
                 
             
                 if session.remaining_seconds == 3600 or session.remaining_seconds <= 0:
-                     
-                     
                      asmt = None
                      if session.invitation_id:
                          inv = await self.db.scalar(select(Invitation).options(joinedload(Invitation.assessment)).where(Invitation.id == session.invitation_id))
@@ -202,19 +239,13 @@ class InterviewService:
                      if asmt:
                          if session.remaining_seconds == 3600:
                             session.remaining_seconds = asmt.duration_minutes * 60
-                            print(f"[DEBUG] Corrected remaining_seconds to {session.remaining_seconds} for session {self.session_id}")
             
-            print("[DEBUG] Committing session initialization...")
             await self.db.commit()
-            print("[DEBUG] Session initialization committed.")
 
         self.heartbeat_task = asyncio.create_task(self._heartbeat_loop())
 
-        print(f"[DEBUG] Calling Interview Agent for greeting at {self.agent_url}...")
         greeting_text, is_end = await self._get_agent_response()
-        print(f"[DEBUG] Interview Agent returned greeting: {greeting_text}")
         
-        print("[DEBUG] Saving interviewer turn to transcript repo...")
         async with self.db_lock:
             await self.transcript_repo.append_turn(
                 self.session_id,
@@ -222,7 +253,6 @@ class InterviewService:
                 greeting_text
             )
         
-        print("[DEBUG] Sending greeting to websocket...")
         await ws.send_text(json.dumps({"type": "tts_start", "text": greeting_text}))
         audio = await deepgram_tts_bytes(greeting_text)
         await ws.send_bytes(audio)
@@ -232,14 +262,12 @@ class InterviewService:
             if self.is_completed:
                 return
                 
-            print(f"[DEBUG] Received final transcript: {full}")
             await ws.send_text(json.dumps({
                 "type": "final",
                 "text": full,
                 "confidence": confidence
             }))
             
-            print("[DEBUG] Appending candidate turn to transcript repo...")
             async with self.db_lock:
                 await self.transcript_repo.append_turn(
                     self.session_id,
@@ -247,10 +275,8 @@ class InterviewService:
                     full
                 )
             
-            print(f"[DEBUG] Calling Interview Agent for response to: {full}")
             llm_text, is_end = await self._get_agent_response(full)
             
-            print(f"[DEBUG] Agent Response (is_end={is_end}): {llm_text}")
             
             async with self.db_lock:
                 await self.transcript_repo.append_turn(
@@ -268,19 +294,28 @@ class InterviewService:
                 await ws.send_text(json.dumps({"type": "session_completed"}))
                 await self.complete_session(auto_evaluate=True)
 
-        print("[DEBUG] Connecting to Deepgram STT...")
         await self.stt.connect(ws, handle_final)
-        print("[DEBUG] Deepgram STT connected.")
 
     def write_audio(self, chunk: bytes):
+        """
+        Feed raw audio chunks from the client into the transcoder.
+
+        Args:
+            chunk: Binary audio data.
+        """
         self.transcoder.write(chunk)
 
     async def on_disconnect(self):
-        print(f"[DEBUG] Disconnect detected for session {self.session_id}")
+        """
+        Handle WebSocket disconnection by ensuring the session is finalized.
+        """
         if not self.is_completed:
             await self.complete_session(auto_evaluate=True)
 
     def close(self):
+        """
+        Cleanup resources, cancel heartbeats, and close audio pipes.
+        """
         if self.heartbeat_task:
             self.heartbeat_task.cancel()
         self.transcoder.close()

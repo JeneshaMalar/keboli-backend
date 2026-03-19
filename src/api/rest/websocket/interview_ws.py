@@ -17,10 +17,8 @@ async def interview_ws(ws: WebSocket):
     invitation_id = UUID(invitation_id_str) if invitation_id_str else None
     
     if not session_id_str:
-        print(f"Generated new session_id: {session_id}")
-    
+        pass
     if not assessment_id or assessment_id == "default_assessment":
-        print("Warning: assessment_id not provided in query params, using default")
         assessment_id = "859f91cc-660d-4a1a-91a7-3238886a8e1d" 
 
     async for db in get_db():

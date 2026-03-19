@@ -17,7 +17,6 @@ async def deepgram_tts_bytes(text: str) -> bytes:
         "Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
         "Content-Type": "application/json",
     }
-    print(f"Deepgram TTS request prepared with model '{model}' and text length {len(text)}")
     start = _now_ms()
     first_byte_ms: Optional[int] = None
     out = bytearray()
@@ -29,7 +28,6 @@ async def deepgram_tts_bytes(text: str) -> bytes:
                     continue
                 if first_byte_ms is None:
                     first_byte_ms = _now_ms()
-                    print(f"TTS Time to First Byte (TTFB): {first_byte_ms - start}ms")
                 out.extend(chunk)
 
     return bytes(out)

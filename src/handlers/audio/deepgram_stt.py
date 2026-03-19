@@ -33,7 +33,6 @@ class DeepgramSTT:
         )
 
         headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
-        print(f"Connecting to Deepgram STT at {dg_url} with model {model} and language {language}")
         async with websockets.connect(dg_url, extra_headers=headers) as dg_ws:
 
             async def pump_pcm():

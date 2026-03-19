@@ -9,7 +9,12 @@ from src.observability.logging.logger import logger
 import asyncio
 
 class LoggingMiddleware(BaseHTTPMiddleware):
+    """
+    Middleware to log all incoming HTTP requests and their outcomes, including errors.
+    Logs are saved asynchronously to avoid blocking request processing.
+    """
     async def dispatch(self, request: Request, call_next):
+        """Intercept incoming requests, log details, and handle any exceptions gracefully."""
         start_time = time.time()
         request_id = uuid.uuid4()
         
@@ -69,6 +74,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             raise e
             
     async def save_log(self, **kwargs):
+        """Persist a log entry to the database asynchronously, ensuring that logging failures do not impact request processing."""
         try:
             async with AsyncSessionLocal() as session:
                 log_entry = SystemLog(**kwargs)

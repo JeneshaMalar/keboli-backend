@@ -267,8 +267,7 @@ async def complete_session(
                     url = f"{settings.EVALUATION_SERVICE_URL}/api/v1/evaluate/{session_id}"
                     await client.post(url, timeout=300.0)
             except Exception as e:
-                print(f"Failed to trigger evaluation agent: {e}")
-                
+                logger.error(f"Failed to trigger evaluation for session {session_id}: {e}")
         asyncio.create_task(_trigger_evaluation())
 
     return {"status": "success"}
