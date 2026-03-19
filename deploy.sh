@@ -18,7 +18,6 @@ INTERVIEW_URL=$(gcloud run services describe keboli-interview-agent --region=$RE
 EVALUATION_URL=$(gcloud run services describe evaluation-agent --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
 FRONTEND_URL=$(gcloud run services describe keboli-frontend --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
 
-# Add it to the env vars
 echo "Interview Agent URL: $INTERVIEW_URL"
 echo "Evaluation Agent URL: $EVALUATION_URL"
 echo "Frontend URL: $FRONTEND_URL"

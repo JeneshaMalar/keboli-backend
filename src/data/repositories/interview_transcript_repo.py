@@ -50,8 +50,6 @@ class InterviewTranscriptRepository:
             transcript.turn_count += 1
             
             await self.db.commit()
-            print(f"Successfully saved {role} turn.")
         except Exception as e:
             await self.db.rollback()
-            print(f"Database error in append_turn: {e}")
             raise e
