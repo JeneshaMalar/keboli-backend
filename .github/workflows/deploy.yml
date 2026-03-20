@@ -1,7 +1,7 @@
 name: Deploy Backend
 on:
   push:
-    branches: [ main ]
+    branches: [ dev ]
 env:
   PROJECT_ID: gwx-internship-01
   REGION: us-east1
@@ -59,8 +59,10 @@ jobs:
             --port=8000 \
             --max-instances=2 \
             --min-instances=0 \
+            --min=0 \
+            --max=2 \
             --service-account gwx-cloudrun-sa-01@gwx-internship-01.iam.gserviceaccount.com \
-            --add-cloudsql-instances ${{ env.CONN_NAME }} \
+            --add-cloudsql-instances  gwx-internship-01:us-east1:gwx-csql-intern-01 \
             --set-env-vars="DATABASE_URL=$DB_URL,FRONTEND_URL=${{ env.F_URL }},INTERVIEW_AGENT_URL=${{ env.I_URL }},EVALUATION_SERVICE_URL=${{ env.E_URL }},DB_HOST=${{ env.DB_HOST }},DB_USER=${{ env.DB_USER }},DB_PASSWORD=${{ env.DB_PASS }},DB_NAME=${{ env.DB_NAME }}"
   
 
