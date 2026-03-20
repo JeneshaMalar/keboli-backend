@@ -1,52 +1,24 @@
-# name: Deploy Backend
-# on:
-#   push:
-#     branches: [ main ]
-# env:
-#   PROJECT_ID: ${{ secrets.GCP_PROJECT_ID }}
-#   REGION: us-east1
-#   REPOSITORY: keboli-repo
-
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
-#     steps:
-#       - uses: actions/checkout@v4
-#       - uses: google-github-actions/auth@v2
-#         with:
-#           credentials_json: ${{ secrets.GCP_SA_KEY }}
-#       - uses: google-github-actions/setup-gcloud@v2
-
-#       - name: Get Agent URLs
-#         run: |
-#           # Fetch the URLs of the other services dynamically
-#           INT_URL=$(gcloud run services describe interview-agent --platform managed --region $REGION --format='value(status.url)')
-#           EVAL_URL=$(gcloud run services describe evaluation-agent --platform managed --region $REGION --format='value(status.url)')
-#           echo "INTERVIEW_SERVICE_URL=$INT_URL" >> $GITHUB_ENV
-#           echo "EVALUATION_SERVICE_URL=$EVAL_URL" >> $GITHUB_ENV
-
-#       - name: Build and Push
-#         run: |
-#           gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
-#           docker build -t $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/backend:latest .
-#           docker push $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/backend:latest
-
-#       - name: Deploy to Cloud Run
-#         run: |
-#           gcloud run deploy keboli-backend \
-#             --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/backend:latest \
-#             --region $REGION \
-#             --allow-unauthenticated \
-#             --set-env-vars INTERVIEW_SERVICE_URL=${{ env.INTERVIEW_SERVICE_URL }},EVALUATION_SERVICE_URL=${{ env.EVALUATION_SERVICE_URL }}
-
-
+name: Deploy Backend
 on:
-  workflow_dispatch:
+  push:
+    branches: [ main ]
+env:
+  PROJECT_ID: gwx-internship-01
+  REGION: us-east1
+  REPOSITORY: gwx-gar-intern-01
+  DB_USER: "jeneshas"
+  DB_PASS: "8S3qfVy7A6t6QfzM%23tD"
+  DB_NAME: "keboli"
+  DB_HOST: "34.23.138.181"
+  CONN_NAME: "gwx-internship-01:us-east1:gwx-csql-intern-01"
+
+permissions:
+  id-token: write 
+  contents: read
+
 jobs:
-  build-and-deploy:
+  deploy:
     runs-on: ubuntu-latest
-    permissions:
-      id-token: write
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -57,4 +29,41 @@ jobs:
           workload_identity_provider: projects/717740758627/locations/global/workloadIdentityPools/githubinterns/providers/github-provider
           service_account: gwx-gh-sa-01@gwx-internship-01.iam.gserviceaccount.com
           token_format: 'access_token'
+        
+      - name: Set up gcloud
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get Agent URLs
+        run: |
+          echo "I_URL=http://136.119.90.140:8001" >> $GITHUB_ENV
+          echo "E_URL=$(gcloud run services describe evaluation-agent --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)" >> $GITHUB_ENV
+          echo "F_URL=$(gcloud run services describe keboli-frontend --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)" >> $GITHUB_ENV
+
+      - name: Build and Push
+        run: |
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          IMAGE_TAG="$REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/backend:latest"
+          docker build -t $IMAGE_TAG .
+          docker push $IMAGE_TAG
+
+      - name: Deploy to Cloud Run
+        run: |
+          DB_URL="postgresql+asyncpg://${{ env.DB_USER }}:${{ env.DB_PASS }}@/${{ env.DB_NAME }}?host=/cloudsql/${{ env.CONN_NAME }}"
+          
+          gcloud run deploy keboli-backend \
+            --image $REGION-docker.pkg.dev/$PROJECT_ID/$REPOSITORY/backend:latest \
+            --region $REGION \
+            --allow-unauthenticated \
+            --project=$PROJECT_ID \
+            --platform=managed \
+            --port=8000 \
+            --max-instances=2 \
+            --min-instances=0 \
+            --service-account gwx-cloudrun-sa-01@gwx-internship-01.iam.gserviceaccount.com \
+            --add-cloudsql-instances ${{ env.CONN_NAME }} \
+            --set-env-vars="DATABASE_URL=$DB_URL,FRONTEND_URL=${{ env.F_URL }},INTERVIEW_AGENT_URL=${{ env.I_URL }},EVALUATION_SERVICE_URL=${{ env.E_URL }},DB_HOST=${{ env.DB_HOST }},DB_USER=${{ env.DB_USER }},DB_PASSWORD=${{ env.DB_PASS }},DB_NAME=${{ env.DB_NAME }}"
+  
+
+
+
       
