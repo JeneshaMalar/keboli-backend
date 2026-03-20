@@ -14,11 +14,12 @@ CONN_NAME="gwx-internship-01:us-east1:gwx-csql-intern-01"
 DB_URL="postgresql+asyncpg://$DB_USER:$DB_PASS@/$DB_NAME?host=/cloudsql/$CONN_NAME"
 
 echo "Fetching Agent URLs..."
-INTERVIEW_URL=$(gcloud run services describe keboli-interview-agent --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
+# INTERVIEW_URL=$(gcloud run services describe keboli-interview-agent --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
 EVALUATION_URL=$(gcloud run services describe evaluation-agent --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
 FRONTEND_URL=$(gcloud run services describe keboli-frontend --region=$REGION --format='value(status.url)' --project=$PROJECT_ID)
+INTERVIEW_URL="http://136.119.90.140:8001"
 
-echo "Interview Agent URL: $INTERVIEW_URL"
+# echo "Interview Agent URL: $INTERVIEW_URL"
 echo "Evaluation Agent URL: $EVALUATION_URL"
 echo "Frontend URL: $FRONTEND_URL"
 # echo "Running DB migrations..."
@@ -45,6 +46,6 @@ gcloud run deploy $SERVICE_NAME \
   --max=2 \
   --service-account gwx-cloudrun-sa-01@gwx-internship-01.iam.gserviceaccount.com \
   --add-cloudsql-instances gwx-internship-01:us-east1:gwx-csql-intern-01 \
-  --set-env-vars="DATABASE_URL=$DB_URL,FRONTEND_URL=$FRONTEND_URL,INTERVIEW_AGENT_URL=$INTERVIEW_URL,EVALUATION_SERVICE_URL=$EVALUATION_URL,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASS,DB_NAME=$DB_NAME"
+  --set-env-vars="DATABASE_URL=$DB_URL,FRONTEND_URL=$FRONTEND_URL,EVALUATION_SERVICE_URL=$EVALUATION_URL,DB_HOST=$DB_HOST,DB_USER=$DB_USER,DB_PASSWORD=$DB_PASS,DB_NAME=$DB_NAME,INTERVIEW_AGENT_URL=$INTERVIEW_URL"
   
 # echo "Backend is live!"
