@@ -1,7 +1,8 @@
 import os
-import httpx
 import time
-from typing import Optional
+
+import httpx
+
 from src.config.settings import settings
 
 
@@ -17,17 +18,18 @@ async def deepgram_tts_bytes(text: str) -> bytes:
         "Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
         "Content-Type": "application/json",
     }
-    start = _now_ms()
-    first_byte_ms: Optional[int] = None
+    _now_ms()
+    first_byte_ms: int | None = None
     out = bytearray()
-    async with httpx.AsyncClient(timeout=None) as client:
-        async with client.stream("POST", url, headers=headers, json={"text": text}) as r:
-            r.raise_for_status()
-            async for chunk in r.aiter_bytes():
-                if not chunk:
-                    continue
-                if first_byte_ms is None:
-                    first_byte_ms = _now_ms()
-                out.extend(chunk)
+    async with httpx.AsyncClient(timeout=None) as client, client.stream(
+        "POST", url, headers=headers, json={"text": text}
+    ) as r:
+        r.raise_for_status()
+        async for chunk in r.aiter_bytes():
+            if not chunk:
+                continue
+            if first_byte_ms is None:
+                first_byte_ms = _now_ms()
+            out.extend(chunk)
 
     return bytes(out)

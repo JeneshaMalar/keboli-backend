@@ -1,15 +1,18 @@
 import uuid
 from datetime import datetime
-from typing import Optional
-from pydantic import BaseModel, EmailStr, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict, EmailStr, Field
+
 
 class CandidateBase(BaseModel):
     email: EmailStr
     name: str = Field(..., min_length=1, max_length=255)
-    resume_url: Optional[str] = None
+    resume_url: str | None = None
+
 
 class CandidateCreate(CandidateBase):
     pass
+
 
 class CandidateResponse(CandidateBase):
     id: uuid.UUID

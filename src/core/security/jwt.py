@@ -5,7 +5,9 @@ from jose import jwt
 from src.config.settings import settings
 
 
-def create_access_token(*, subject: str, role: str, expires_minutes: int | None = None) -> str:
+def create_access_token(
+    *, subject: str, role: str, expires_minutes: int | None = None
+) -> str:
     """Generate a JWT access token with embedded user role and expiration."""
     expire_minutes = expires_minutes or settings.ACCESS_TOKEN_EXPIRE_MINUTES
     expire = datetime.now(timezone.utc) + timedelta(minutes=expire_minutes)

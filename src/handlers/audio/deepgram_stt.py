@@ -1,13 +1,14 @@
-import json
-import websockets
 import asyncio
+import json
 import os
-from typing import Callable
+from collections.abc import Callable
+
+import websockets
+
 from src.config.settings import settings
 
 
 class DeepgramSTT:
-
     def __init__(self, transcoder):
         self.transcoder = transcoder
         self.last_speech_ms = None
@@ -49,7 +50,7 @@ class DeepgramSTT:
                         continue
 
                     data = json.loads(raw)
-                    ch = (data.get("channel") or {})
+                    ch = data.get("channel") or {}
                     alts = ch.get("alternatives") or []
                     if not alts:
                         continue
@@ -66,10 +67,9 @@ class DeepgramSTT:
                     is_final = bool(data.get("is_final"))
 
                     if not (speech_final or is_final):
-                        await ws.send_text(json.dumps({
-                            "type": "partial",
-                            "text": text
-                        }))
+                        await ws.send_text(
+                            json.dumps({"type": "partial", "text": text})
+                        )
                         continue
 
                     self.transcript_parts.append(text)

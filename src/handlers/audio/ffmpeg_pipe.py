@@ -1,11 +1,10 @@
+import contextlib
 import subprocess
-from typing import Optional
-
 
 
 class PCMTranscoder:
     def __init__(self) -> None:
-        self._proc: Optional[subprocess.Popen[bytes]] = None
+        self._proc: subprocess.Popen[bytes] | None = None
 
     def start(self) -> None:
         if self._proc is not None:
@@ -57,8 +56,6 @@ class PCMTranscoder:
                 self._proc.stdout.close()
         except Exception:
             pass
-        try:
+        with contextlib.suppress(Exception):
             self._proc.terminate()
-        except Exception:
-            pass
         self._proc = None

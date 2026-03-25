@@ -1,9 +1,11 @@
 import asyncio
-import time
 import json
+import time
+
 
 def now_ms():
     return int(time.time() * 1000)
+
 
 async def silence_notifier(ws, get_last_speech):
     last_silence_sent = None
@@ -25,7 +27,6 @@ async def silence_notifier(ws, get_last_speech):
 
         last_silence_sent = silence_ms
 
-        await ws.send_text(json.dumps({
-            "type": "SILENCE_DETECTED",
-            "silence_ms": silence_ms
-        }))
+        await ws.send_text(
+            json.dumps({"type": "SILENCE_DETECTED", "silence_ms": silence_ms})
+        )

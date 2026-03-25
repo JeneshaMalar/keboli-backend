@@ -1,8 +1,11 @@
 import uuid
-from sqlalchemy.ext.asyncio import AsyncSession
+
 from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.data.models.organization import Organization
 from src.data.models.recruiter import Recruiter
+
 
 class AuthRepository:
     def __init__(self, session: AsyncSession):
@@ -19,12 +22,11 @@ class AuthRepository:
         await self.session.flush()
         return org
 
-    async def create_recruiter(self, org_id: uuid.UUID, email: str, password_hash: str, role: str) -> Recruiter:
+    async def create_recruiter(
+        self, org_id: uuid.UUID, email: str, password_hash: str, role: str
+    ) -> Recruiter:
         recruiter = Recruiter(
-            org_id=org_id,
-            email=email,
-            password_hash=password_hash,
-            role=role
+            org_id=org_id, email=email, password_hash=password_hash, role=role
         )
         self.session.add(recruiter)
         return recruiter
