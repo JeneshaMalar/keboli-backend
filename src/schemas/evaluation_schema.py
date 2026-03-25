@@ -1,40 +1,54 @@
+"""Pydantic schemas for evaluation reports and updates."""
+
 import uuid
 from datetime import datetime
-from typing import Optional, Dict, Any
-from pydantic import BaseModel, Field, ConfigDict
+
+from pydantic import BaseModel, ConfigDict
+
 from src.constants.enums import HiringRecommendation
 
+
 class EvaluationCreate(BaseModel):
+    """Schema for creating or submitting an evaluation report."""
+
     technical_score: float
     communication_score: float
     confidence_score: float
     cultural_alignment_score: float
     total_score: float
-    score_breakdown: Dict[str, Any]
+    score_breakdown: dict[str, object]
     ai_summary: str
-    ai_explanation: Optional[str] = None
+    ai_explanation: str | None = None
     hiring_recommendation: HiringRecommendation
-    admin_recommendation: Optional[HiringRecommendation] = None
-    admin_notes: Optional[str] = None
+    admin_recommendation: HiringRecommendation | None = None
+    admin_notes: str | None = None
     is_tie_winner: bool = False
-    detailed_analysis: Optional[Dict[str, Any]] = None
+    detailed_analysis: dict[str, object] | None = None
+
 
 class EvaluationResponse(EvaluationCreate):
+    """Schema for an evaluation report response."""
+
     id: uuid.UUID
     session_id: uuid.UUID
     created_at: datetime
 
-    class Config:
-        from_attributes = True
+    model_config = ConfigDict(from_attributes=True)
+
 
 class EvaluationUpdate(BaseModel):
-    admin_recommendation: Optional[HiringRecommendation] = None
-    admin_notes: Optional[str] = None
-    is_tie_winner: Optional[bool] = None
+    """Schema for updating an evaluation with admin overrides."""
+
+    admin_recommendation: HiringRecommendation | None = None
+    admin_notes: str | None = None
+    is_tie_winner: bool | None = None
+
 
 class EvaluationReportResponse(BaseModel):
-    evaluation: Optional[EvaluationResponse] = None
-    transcript: Optional[Dict[str, Any]] = None
-    candidate: Optional[Dict[str, Any]] = None
+    """Full evaluation report including candidate and transcript data."""
+
+    evaluation: EvaluationResponse | None = None
+    transcript: dict[str, object] | None = None
+    candidate: dict[str, object] | None = None
 
     model_config = ConfigDict(from_attributes=True)

@@ -1,18 +1,19 @@
 import asyncio
+import sys
 from logging.config import fileConfig
+from pathlib import Path
 
+from alembic import context
 from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
-import sys
-from pathlib import Path
-from alembic import context
-import enum
-root_dir = Path(__file__).resolve().parents[3] 
+
+root_dir = Path(__file__).resolve().parents[3]
 sys.path.append(str(root_dir))
 
 from src.config.settings import settings
 from src.data.models import *
+
 config = context.config
 
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
