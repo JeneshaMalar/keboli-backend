@@ -1,40 +1,59 @@
+import asyncio
 import time
 import uuid
-from starlette.middleware.base import BaseHTTPMiddleware
-from fastapi import Request
+
+from fastapi import Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+
+from src.constants.enums import LogLevel
 from src.data.database.session import AsyncSessionLocal
 from src.data.models.system_log import SystemLog
-from src.constants.enums import LogLevel
 from src.observability.logging.logger import logger
-import asyncio
+
 
 class LoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware that intercepts every request to log method, path, status, and duration.
+
+    Logs are persisted asynchronously to the SystemLog table so that
+    logging failures do not impact request processing.
     """
-    Middleware to log all incoming HTTP requests and their outcomes, including errors.
-    Logs are saved asynchronously to avoid blocking request processing.
-    """
-    async def dispatch(self, request: Request, call_next):
-        """Intercept incoming requests, log details, and handle any exceptions gracefully."""
+
+    async def dispatch(
+        self, request: Request, call_next: RequestResponseEndpoint
+    ) -> Response:
+        """Intercept incoming requests, log details, and handle exceptions gracefully.
+
+        Args:
+            request: The incoming HTTP request.
+            call_next: Callable that forwards the request to the next middleware/route.
+
+        Returns:
+            The HTTP response from downstream handlers.
+        """
         start_time = time.time()
         request_id = uuid.uuid4()
-        
-        ip_address = request.client.host if request.client else None
-        user_agent = request.headers.get("user-agent")
-        path = request.url.path
-        method = request.method
-        
+
+        ip_address: str | None = request.client.host if request.client else None
+        user_agent: str | None = request.headers.get("user-agent")
+        path: str = request.url.path
+        method: str = request.method
+
         try:
-            response = await call_next(request)
-            
+            response: Response = await call_next(request)
+
             end_time = time.time()
             duration_ms = int((end_time - start_time) * 1000)
             status_code = response.status_code
-            
-            level = LogLevel.INFO if status_code < 400 else (LogLevel.WARNING if status_code < 500 else LogLevel.ERROR)
+
+            level = (
+                LogLevel.INFO
+                if status_code < 400
+                else (LogLevel.WARNING if status_code < 500 else LogLevel.ERROR)
+            )
             message = f"{method} {path} - {status_code}"
-            
+
             asyncio.create_task(
-                self.save_log(
+                self._save_log(
                     level=level,
                     service="backend_main",
                     component="middleware",
@@ -45,18 +64,22 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     message=message,
                     duration_ms=duration_ms,
                     status=str(status_code),
-                    details={"path": path, "method": method, "query": str(request.query_params)}
+                    details={
+                        "path": path,
+                        "method": method,
+                        "query": str(request.query_params),
+                    },
                 )
             )
-            
+
             return response
-            
+
         except Exception as e:
             end_time = time.time()
             duration_ms = int((end_time - start_time) * 1000)
-            
+
             asyncio.create_task(
-                self.save_log(
+                self._save_log(
                     level=LogLevel.ERROR,
                     service="backend_main",
                     component="middleware",
@@ -64,21 +87,33 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                     request_id=request_id,
                     ip_address=ip_address,
                     user_agent=user_agent,
-                    message=f"{method} {path} - Error: {str(e)}",
+                    message=f"{method} {path} - Error: {e!s}",
                     error_stack=str(e),
                     duration_ms=duration_ms,
                     status="500",
-                    details={"path": path, "method": method, "query": str(request.query_params)}
+                    details={
+                        "path": path,
+                        "method": method,
+                        "query": str(request.query_params),
+                    },
                 )
             )
-            raise e
-            
-    async def save_log(self, **kwargs):
-        """Persist a log entry to the database asynchronously, ensuring that logging failures do not impact request processing."""
+            raise
+
+    @staticmethod
+    async def _save_log(**kwargs: object) -> None:
+        """Persist a log entry to the database asynchronously.
+
+        Logging failures are caught and reported via structlog so they
+        never impact request processing.
+
+        Args:
+            **kwargs: Key-value pairs matching the SystemLog model columns.
+        """
         try:
             async with AsyncSessionLocal() as session:
                 log_entry = SystemLog(**kwargs)
                 session.add(log_entry)
                 await session.commit()
         except Exception as e:
-            logger.error(f"Failed to save system log in middleware: {str(e)}")
+            logger.error("failed_to_save_system_log", error=str(e))

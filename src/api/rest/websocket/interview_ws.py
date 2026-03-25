@@ -1,10 +1,13 @@
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from src.core.services.interview_service import InterviewService
 import asyncio
 from uuid import UUID, uuid4
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
 from src.api.rest.dependencies import get_db
+from src.core.services.interview_service import InterviewService
 
 router = APIRouter()
+
 
 @router.websocket("/ws/interview")
 async def interview_ws(ws: WebSocket):
@@ -12,14 +15,14 @@ async def interview_ws(ws: WebSocket):
     session_id_str = ws.query_params.get("session_id")
     assessment_id = ws.query_params.get("assessment_id")
     invitation_id_str = ws.query_params.get("invitation_id")
-    
+
     session_id = UUID(session_id_str) if session_id_str else uuid4()
     invitation_id = UUID(invitation_id_str) if invitation_id_str else None
-    
+
     if not session_id_str:
         pass
     if not assessment_id or assessment_id == "default_assessment":
-        assessment_id = "859f91cc-660d-4a1a-91a7-3238886a8e1d" 
+        assessment_id = "859f91cc-660d-4a1a-91a7-3238886a8e1d"
 
     async for db in get_db():
         service = InterviewService(db, session_id, assessment_id, invitation_id)
@@ -27,17 +30,16 @@ async def interview_ws(ws: WebSocket):
         try:
             while True:
                 msg = await ws.receive()
-                
+
                 if msg.get("type") == "websocket.disconnect":
                     raise WebSocketDisconnect
-                
+
                 if msg.get("bytes"):
                     service.write_audio(msg["bytes"])
-                    
+
         except WebSocketDisconnect:
             print(f"Websocket disconnected for session: {session_id}")
         finally:
             stt_task.cancel()
             await service.on_disconnect()
             service.close()
-            break

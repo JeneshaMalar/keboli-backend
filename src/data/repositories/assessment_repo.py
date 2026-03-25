@@ -1,7 +1,11 @@
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, update
-from src.data.models.assessment import Assessment
 import uuid
+
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.data.models.assessment import Assessment
+
+
 class AssessmentRepository:
     def __init__(self, session: AsyncSession):
         self.session = session
@@ -21,6 +25,11 @@ class AssessmentRepository:
         return result.scalars().all()
 
     async def update(self, assessment_id: uuid.UUID, **kwargs):
-        query = update(Assessment).where(Assessment.id == assessment_id).values(**kwargs).returning(Assessment)
+        query = (
+            update(Assessment)
+            .where(Assessment.id == assessment_id)
+            .values(**kwargs)
+            .returning(Assessment)
+        )
         result = await self.session.execute(query)
         return result.scalar_one()
