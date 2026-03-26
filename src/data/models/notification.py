@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing an in-app notification for hiring managers."""
+
 import uuid
 from datetime import datetime
 
@@ -9,6 +11,12 @@ from src.data.models.base import Base
 
 
 class Notification(Base):
+    """An in-app notification delivered to a hiring manager.
+
+    Notifications are created when key events occur (e.g. interview
+    completion) and link to the relevant page via target_path.
+    """
+
     __tablename__ = "notifications"
 
     id: Mapped[uuid.UUID] = mapped_column(

@@ -1,59 +1,47 @@
-"""Health check endpoints for liveness and readiness probes."""
+"""Health check routes for monitoring service and database availability."""
 
-import time
+import logging
 
 from fastapi import APIRouter, Depends
-from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_db
 
-router = APIRouter()
+logger = logging.getLogger(__name__)
 
-
-class ServiceStatus(BaseModel):
-    """Status of an individual backing service."""
-
-    database: str = "unknown"
-
-
-class HealthResponse(BaseModel):
-    """Structured health-check response returned by the /health endpoint."""
-
-    status: str = "ok"
-    services: ServiceStatus = ServiceStatus()
-    response_time_ms: float = 0.0
-    error: str | None = None
+router = APIRouter(tags=["health"])
 
 
 @router.get(
     "/health",
-    response_model=HealthResponse,
-    summary="Application health check",
-    description="Returns the health status of the application and its backing services.",
+    summary="Health check",
+    description="Verify that the API and database connection are operational.",
 )
-async def health(db: AsyncSession = Depends(get_db)) -> HealthResponse:
-    """Check application and database connectivity.
+async def health(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, str]:
+    """Check API and database health.
+
+    Executes a lightweight SQL query to verify database connectivity.
 
     Args:
-        db: Async database session injected by FastAPI.
+        db: Async database session.
 
     Returns:
-        HealthResponse with service statuses and response time.
+        A dictionary with service and database status indicators.
     """
-    start = time.time()
-
-    health_status = HealthResponse()
-
     try:
         await db.execute(text("SELECT 1"))
-        health_status.services.database = "connected"
-    except Exception as e:
-        health_status.status = "degraded"
-        health_status.services.database = "disconnected"
-        health_status.error = str(e)
+        db_status = "healthy"
+    except ConnectionRefusedError:
+        logger.warning("Database connection refused during health check")
+        db_status = "unhealthy"
+    except OSError as e:
+        logger.warning("Database connectivity issue during health check: %s", e)
+        db_status = "unhealthy"
 
-    health_status.response_time_ms = round((time.time() - start) * 1000, 2)
-
-    return health_status
+    return {
+        "status": "healthy",
+        "database": db_status,
+    }

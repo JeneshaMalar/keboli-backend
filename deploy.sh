@@ -28,9 +28,9 @@ echo "Frontend URL: $FRONTEND_URL"
 # uv run python -m alembic upgrade head
 
 
-echo "Building Backend..."
-docker build -t $IMAGE .
-docker push $IMAGE
+# echo "Building Backend..."
+# docker build -t $IMAGE .
+# docker push $IMAGE
 
 echo "Deploying to Cloud Run..."
 gcloud run deploy $SERVICE_NAME \

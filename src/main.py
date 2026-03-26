@@ -1,3 +1,5 @@
+"""Keboli AI Interview Platform – FastAPI application entry point."""
+
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 

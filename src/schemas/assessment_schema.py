@@ -1,3 +1,5 @@
+"""Pydantic schemas for assessment request/response serialization."""
+
 import uuid
 from datetime import datetime
 
@@ -7,6 +9,8 @@ from src.constants.enums import DifficultyLevel
 
 
 class AssessmentBase(BaseModel):
+    """Base schema containing shared assessment fields."""
+
     title: str = Field(
         ..., min_length=3, max_length=255, examples=["Senior Python Developer Test"]
     )
@@ -22,10 +26,12 @@ class AssessmentBase(BaseModel):
 
 
 class AssessmentCreate(AssessmentBase):
-    pass
+    """Schema for creating a new assessment."""
 
 
 class AssessmentUpdate(BaseModel):
+    """Schema for partially updating an existing assessment."""
+
     title: str | None = None
     job_description: str | None = None
     duration_minutes: int | None = None
@@ -36,6 +42,8 @@ class AssessmentUpdate(BaseModel):
 
 
 class AssessmentResponse(AssessmentBase):
+    """Schema for assessment API responses with server-generated fields."""
+
     id: uuid.UUID
     org_id: uuid.UUID
     created_at: datetime

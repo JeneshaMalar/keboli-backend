@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing a candidate interview invitation."""
+
 import uuid
 from datetime import datetime
 
@@ -11,6 +13,13 @@ from src.data.models.base import Base
 
 
 class Invitation(Base):
+    """An invitation linking a candidate to an assessment via a secure token.
+
+    Tracks the invitation lifecycle from SENT through CLICKED to
+    COMPLETED or EXPIRED, and provides computed properties for the
+    latest session status and evaluation scores.
+    """
+
     __tablename__ = "invitations"
 
     id: Mapped[uuid.UUID] = mapped_column(
@@ -42,9 +51,9 @@ class Invitation(Base):
 
     @property
     def latest_session_id(self) -> uuid.UUID | None:
+        """Return the ID of the most recently created session, if any."""
         if not self.sessions:
             return None
-        # Sort by creation time descending and get the first one
         sorted_sessions = sorted(
             self.sessions, key=lambda s: s.created_at, reverse=True
         )
@@ -52,6 +61,7 @@ class Invitation(Base):
 
     @property
     def total_score(self) -> float | None:
+        """Return the total evaluation score from the latest session, if available."""
         if not self.sessions:
             return None
         sorted_sessions = sorted(
@@ -66,6 +76,7 @@ class Invitation(Base):
 
     @property
     def hiring_recommendation(self) -> str | None:
+        """Return the AI hiring recommendation from the latest session, if available."""
         if not self.sessions:
             return None
         sorted_sessions = sorted(
@@ -80,6 +91,7 @@ class Invitation(Base):
 
     @property
     def latest_session_status(self) -> str | None:
+        """Return the status string of the most recently created session."""
         if not self.sessions:
             return None
         sorted_sessions = sorted(

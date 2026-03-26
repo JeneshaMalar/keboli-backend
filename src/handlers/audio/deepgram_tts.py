@@ -1,3 +1,5 @@
+"""Deepgram Text-to-Speech (TTS) client for generating audio from text."""
+
 import os
 import time
 
@@ -7,10 +9,22 @@ from src.config.settings import settings
 
 
 def _now_ms() -> int:
+    """Return the current time in milliseconds since epoch."""
     return int(time.time() * 1000)
 
 
 async def deepgram_tts_bytes(text: str) -> bytes:
+    """Convert text to speech audio bytes using Deepgram's REST API.
+
+    Args:
+        text: The text content to synthesize into speech.
+
+    Returns:
+        Raw MP3 audio bytes.
+
+    Raises:
+        httpx.HTTPStatusError: If the Deepgram API returns an error response.
+    """
     model = os.getenv("DEEPGRAM_TTS_MODEL", "aura-helios-en")
     url = f"https://api.deepgram.com/v1/speak?model={model}&encoding=mp3"
 
@@ -18,7 +32,6 @@ async def deepgram_tts_bytes(text: str) -> bytes:
         "Authorization": f"Token {settings.DEEPGRAM_API_KEY}",
         "Content-Type": "application/json",
     }
-    _now_ms()
     first_byte_ms: int | None = None
     out = bytearray()
     async with httpx.AsyncClient(timeout=None) as client, client.stream(

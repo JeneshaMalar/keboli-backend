@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing a structured system log entry."""
+
 import uuid
 from datetime import datetime
 from typing import Any
@@ -13,6 +15,12 @@ from src.data.models.base import Base
 
 
 class SystemLog(Base):
+    """A structured log entry persisted to the database for observability.
+
+    Captures request metadata, timing, error stacks, and contextual
+    IDs (session, candidate, assessment) for end-to-end tracing.
+    """
+
     __tablename__ = "system_logs"
 
     id: Mapped[uuid.UUID] = mapped_column(
