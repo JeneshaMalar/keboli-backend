@@ -2,16 +2,18 @@
 
 import csv
 import io
+import logging
 import uuid
 from typing import Any
 
-from fastapi import UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import ConflictError, NotFoundError, ValidationError
 from src.data.models.candidate import Candidate
 from src.data.repositories.candidate_repo import CandidateRepository
 from src.schemas.candidate_schema import CandidateCreate
+
+logger = logging.getLogger(__name__)
 
 
 class CandidateService:
@@ -90,30 +92,29 @@ class CandidateService:
         return {"message": "Candidate deleted successfully"}
 
     async def bulk_upload_candidates(
-        self, org_id: uuid.UUID, file: UploadFile
+        self, org_id: uuid.UUID, file_content: bytes, filename: str
     ) -> dict[str, Any]:
-        """Process a CSV file to create multiple candidates at once.
+        """Process CSV content to create multiple candidates at once.
 
         Args:
             org_id: Unique identifier of the organization.
-            file: The uploaded CSV file containing 'email' and 'name' columns.
+            file_content: Raw bytes of the uploaded CSV file.
+            filename: Original filename for format validation.
 
         Returns:
             A dictionary containing the count of created records and a list of errors.
 
         Raises:
             ValidationError: If the file format is invalid.
-            AppError: If processing fails unexpectedly.
         """
-        if not file.filename or not file.filename.endswith(".csv"):
+        if not filename or not filename.endswith(".csv"):
             raise ValidationError(
                 message="Only CSV files are supported for bulk upload",
                 field="file",
             )
 
         try:
-            content = await file.read()
-            decoded = content.decode("utf-8-sig")
+            decoded = file_content.decode("utf-8-sig")
             f = io.StringIO(decoded)
             reader = csv.DictReader(f)
 
@@ -167,8 +168,11 @@ class CandidateService:
                 return {"created_count": 0, "errors": errors}
         except ValidationError:
             raise
+        except UnicodeDecodeError as e:
+            raise ValidationError(
+                message=f"File encoding error: {e!s}"
+            ) from e
         except Exception as e:
             await self.session.rollback()
+            logger.error("Bulk upload failed for org %s: %s", org_id, e)
             raise ValidationError(message=f"Bulk upload failed: {e!s}") from e
-        finally:
-            await file.close()

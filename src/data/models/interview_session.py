@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing an interview session instance."""
+
 import uuid
 from datetime import datetime
 
@@ -11,6 +13,12 @@ from src.data.models.base import Base
 
 
 class InterviewSession(Base):
+    """A single interview session between a candidate and the AI interviewer.
+
+    Tracks the session lifecycle (in_progress → completed/abandoned),
+    timing information, and optional LiveKit egress recording ID.
+    """
+
     __tablename__ = "interview_sessions"
 
     id: Mapped[uuid.UUID] = mapped_column(

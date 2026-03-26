@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing an organization (workspace)."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -13,6 +15,12 @@ from src.data.models.base import Base
 
 
 class Organization(Base):
+    """A tenant workspace that owns recruiters, candidates, and assessments.
+
+    Each organization is an isolated workspace with its own pool of
+    hiring managers, candidates, assessments, and invitation data.
+    """
+
     __tablename__ = "organizations"
 
     id: Mapped[uuid.UUID] = mapped_column(

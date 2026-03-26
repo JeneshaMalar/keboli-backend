@@ -1,3 +1,5 @@
+"""FastAPI dependency injection providers for database sessions and authentication."""
+
 from collections.abc import AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request, status
@@ -7,12 +9,17 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.config.settings import settings
 from src.core.security.jwt import decode_access_token
 from src.core.security.roles import Role
-from src.data.database.session import AsyncSessionLocal
+from src.data.database.session import async_session_factory
 from src.data.models.recruiter import Recruiter
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
-    async with AsyncSessionLocal() as session:
+    """Yield an async database session, closing it after the request.
+
+    Yields:
+        An AsyncSession bound to the current request lifecycle.
+    """
+    async with async_session_factory() as session:
         yield session
 
 
@@ -20,6 +27,19 @@ async def get_current_recruiter(
     request: Request,
     db: AsyncSession = Depends(get_db),
 ) -> Recruiter:
+    """Extract and validate the current recruiter from the JWT cookie.
+
+    Args:
+        request: The incoming HTTP request containing the auth cookie.
+        db: Async database session.
+
+    Returns:
+        The authenticated Recruiter ORM instance.
+
+    Raises:
+        HTTPException: If the cookie is missing, the token is invalid,
+            or the user does not exist.
+    """
     token = request.cookies.get(settings.COOKIE_NAME)
     if not token:
         raise HTTPException(
@@ -53,6 +73,17 @@ async def get_current_recruiter(
 async def require_hiring_manager(
     recruiter: Recruiter = Depends(get_current_recruiter),
 ) -> Recruiter:
+    """Verify the authenticated user has the HIRING_MANAGER role.
+
+    Args:
+        recruiter: The authenticated recruiter from get_current_recruiter.
+
+    Returns:
+        The recruiter if authorized.
+
+    Raises:
+        HTTPException: If the user does not have the HIRING_MANAGER role.
+    """
     if recruiter.role != Role.HIRING_MANAGER.value:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
     return recruiter

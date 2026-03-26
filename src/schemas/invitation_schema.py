@@ -1,3 +1,5 @@
+"""Pydantic schemas for invitation request/response serialization."""
+
 import uuid
 from datetime import datetime
 
@@ -8,12 +10,16 @@ from src.schemas.candidate_schema import CandidateResponse
 
 
 class InvitationCreate(BaseModel):
+    """Schema for creating a new candidate invitation."""
+
     candidate_id: uuid.UUID
     assessment_id: uuid.UUID
     expires_in_hours: int | None = 48
 
 
 class InvitationResponse(BaseModel):
+    """Schema for invitation API responses with computed session data."""
+
     id: uuid.UUID
     candidate_id: uuid.UUID
     assessment_id: uuid.UUID

@@ -1,3 +1,5 @@
+"""HTTP request/response logging middleware with async database persistence."""
+
 import asyncio
 import time
 import uuid
@@ -6,7 +8,7 @@ from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 
 from src.constants.enums import LogLevel
-from src.data.database.session import AsyncSessionLocal
+from src.data.database.session import async_session_factory
 from src.data.models.system_log import SystemLog
 from src.observability.logging.logger import logger
 
@@ -111,7 +113,7 @@ class LoggingMiddleware(BaseHTTPMiddleware):
             **kwargs: Key-value pairs matching the SystemLog model columns.
         """
         try:
-            async with AsyncSessionLocal() as session:
+            async with async_session_factory() as session:
                 log_entry = SystemLog(**kwargs)
                 session.add(log_entry)
                 await session.commit()

@@ -120,8 +120,14 @@ class EmailService:
         try:
             response = self.sg.send(message)
             return response.status_code
+        except (ConnectionError, TimeoutError) as e:
+            logger.error("Network error sending invitation email via SendGrid: %s", e)
+            return None
+        except ValueError as e:
+            logger.error("Invalid email configuration for SendGrid: %s", e)
+            return None
         except Exception as e:
-            logger.error(f"Error sending email via SendGrid: {e}")
+            logger.error("Unexpected error sending email via SendGrid: %s", e)
             return None
 
     async def send_interview_completion_email(
@@ -212,6 +218,12 @@ class EmailService:
         try:
             response = self.sg.send(message)
             return response.status_code
+        except (ConnectionError, TimeoutError) as e:
+            logger.error("Network error sending completion email via SendGrid: %s", e)
+            return None
+        except ValueError as e:
+            logger.error("Invalid email configuration for SendGrid: %s", e)
+            return None
         except Exception as e:
-            logger.error(f"Error sending email via SendGrid: {e}")
+            logger.error("Unexpected error sending completion email via SendGrid: %s", e)
             return None

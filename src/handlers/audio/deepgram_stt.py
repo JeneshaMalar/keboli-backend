@@ -1,3 +1,5 @@
+"""Deepgram Speech-to-Text (STT) client using WebSocket streaming."""
+
 import asyncio
 import json
 import os
@@ -9,13 +11,30 @@ from src.config.settings import settings
 
 
 class DeepgramSTT:
-    def __init__(self, transcoder):
+    """Real-time speech-to-text transcription via Deepgram's WebSocket API.
+
+    Reads PCM audio from a transcoder, streams it to Deepgram, and
+    dispatches final transcripts to a callback function.
+
+    Args:
+        transcoder: A PCMTranscoder providing raw 16kHz mono audio.
+    """
+
+    def __init__(self, transcoder: object) -> None:
         self.transcoder = transcoder
-        self.last_speech_ms = None
-        self.transcript_parts = []
+        self.last_speech_ms: int | None = None
+        self.transcript_parts: list[str] = []
 
-    async def connect(self, ws, on_final_transcript: Callable):
+    async def connect(self, ws: object, on_final_transcript: Callable) -> None:
+        """Open a Deepgram WebSocket connection and start streaming audio.
 
+        Runs two concurrent loops: one pumps PCM audio to Deepgram,
+        the other reads transcript messages and forwards finals to the callback.
+
+        Args:
+            ws: The client-facing WebSocket to send interim/final results.
+            on_final_transcript: Async callback invoked with (full_text, confidence).
+        """
         model = os.getenv("DEEPGRAM_STT_MODEL", "nova-2")
         language = os.getenv("DEEPGRAM_LANGUAGE", "en-US")
         endpointing = os.getenv("DEEPGRAM_ENDPOINTING_MS", "300")
@@ -36,7 +55,8 @@ class DeepgramSTT:
         headers = {"Authorization": f"Token {settings.DEEPGRAM_API_KEY}"}
         async with websockets.connect(dg_url, extra_headers=headers) as dg_ws:
 
-            async def pump_pcm():
+            async def pump_pcm() -> None:
+                """Continuously read PCM chunks from the transcoder and send to Deepgram."""
                 while True:
                     chunk = await asyncio.to_thread(self.transcoder.read, 4096)
                     if chunk:
@@ -44,7 +64,8 @@ class DeepgramSTT:
                     else:
                         await asyncio.sleep(0.01)
 
-            async def read_messages():
+            async def read_messages() -> None:
+                """Process incoming Deepgram messages and dispatch final transcripts."""
                 async for raw in dg_ws:
                     if not isinstance(raw, str):
                         continue

@@ -1,3 +1,5 @@
+"""API router assembly – registers all route modules under a single prefix."""
+
 from fastapi import APIRouter
 
 from src.api.rest.routes.assessment import router as assessment_router

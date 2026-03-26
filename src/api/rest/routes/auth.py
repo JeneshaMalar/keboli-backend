@@ -2,7 +2,6 @@
 
 from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
-from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_current_recruiter, get_db
@@ -13,6 +12,7 @@ from src.core.security.password import verify_password
 from src.core.security.roles import Role
 from src.core.services.registration_service import RegistrationService
 from src.data.models.recruiter import Recruiter
+from src.data.repositories.auth_repo import AuthRepository
 from src.schemas.auth_schema import LoginRequest, LoginResponse, OrgCreate, RecruiterOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -55,8 +55,8 @@ async def login(
     Raises:
         UnauthorizedError: If the credentials are invalid.
     """
-    result = await db.execute(select(Recruiter).where(Recruiter.email == payload.email))
-    recruiter = result.scalar_one_or_none()
+    repo = AuthRepository(db)
+    recruiter = await repo.get_recruiter_by_email(payload.email)
     if not recruiter or not verify_password(payload.password, recruiter.password_hash):
         raise UnauthorizedError(message="Invalid credentials")
 
