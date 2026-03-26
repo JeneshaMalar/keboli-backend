@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing an AI-generated interview evaluation."""
+
 import uuid
 from datetime import datetime
 from typing import Any
@@ -13,6 +15,12 @@ from src.data.models.base import Base
 
 
 class Evaluation(Base):
+    """AI-generated evaluation result for a completed interview session.
+
+    Contains scoring across multiple dimensions, an AI summary,
+    a hiring recommendation, and optional admin overrides.
+    """
+
     __tablename__ = "evaluations"
 
     id: Mapped[uuid.UUID] = mapped_column(

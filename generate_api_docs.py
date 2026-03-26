@@ -1,6 +1,11 @@
+"""Script to generate Markdown API documentation from OpenAPI JSON spec."""
+
 import json
+import logging
 from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # Paths
 input_file = Path("docs/openapi.json")
@@ -17,7 +22,7 @@ description = data.get("info", {}).get("description", "API Documentation")
 paths = data.get("paths", {})
 
 # Start Markdown
-md = []
+md: list[str] = []
 md.append(f"# {title} API Documentation\n")
 md.append(f"**Version:** {version}\n")
 md.append(f"**Generated on:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -58,5 +63,4 @@ for path, methods in paths.items():
 
 # Write output file
 output_file.write_text("\n".join(md), encoding="utf-8")
-print(f"✅ Documentation generated at {output_file}")
-
+logger.info("Documentation generated at %s", output_file)

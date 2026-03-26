@@ -1,3 +1,5 @@
+"""Structured logging configuration using structlog with JSON output."""
+
 import structlog
 
 structlog.configure(

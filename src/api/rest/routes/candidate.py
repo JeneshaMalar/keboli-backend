@@ -1,131 +1,128 @@
-"""Candidate management routes for CRUD and bulk upload operations."""
+"""Candidate management routes for CRUD operations and bulk CSV upload."""
 
 import uuid
 
-from fastapi import APIRouter, Depends, File, UploadFile
-from pydantic import BaseModel
+from fastapi import APIRouter, Depends, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_current_recruiter, get_db
 from src.core.services.candidate_service import CandidateService
 from src.data.models.recruiter import Recruiter
-from src.schemas.candidate_schema import CandidateCreate, CandidateResponse
+from src.schemas.candidate_schema import CandidateResponse
 
-router = APIRouter(prefix="/candidate", tags=["candidate"])
-
-
-class MessageResponse(BaseModel):
-    """Generic success message response."""
-
-    message: str
-
-
-class BulkUploadResponse(BaseModel):
-    """Response model for the bulk upload endpoint."""
-
-    created_count: int
-    errors: list[str]
+router = APIRouter(prefix="/candidates", tags=["candidates"])
 
 
 @router.post(
     "/",
     response_model=CandidateResponse,
-    summary="Create a new candidate",
-    description="Add a single candidate to the authenticated user's organization.",
+    status_code=status.HTTP_201_CREATED,
+    summary="Create a candidate",
+    description="Register a new candidate within the authenticated user's organization.",
 )
 async def create_candidate(
-    payload: CandidateCreate,
+    payload: dict,
     db: AsyncSession = Depends(get_db),
     current_user: Recruiter = Depends(get_current_recruiter),
 ) -> CandidateResponse:
-    """Create a new candidate in the current organization.
+    """Create a new candidate in the current user's organization.
 
     Args:
-        payload: Candidate details (email, name, resume_url).
+        payload: Candidate creation data (email, name, optional resume_url).
         db: Async database session.
-        current_user: Authenticated recruiter.
+        current_user: The authenticated recruiter.
 
     Returns:
         The newly created candidate.
     """
+    from src.schemas.candidate_schema import CandidateCreate
+
+    data = CandidateCreate(**payload)
     service = CandidateService(db)
-    return await service.create_candidate(org_id=current_user.org_id, data=payload)
+    candidate = await service.create_candidate(current_user.org_id, data)
+    return CandidateResponse.model_validate(candidate)
 
 
 @router.get(
-    "/org-candidates",
+    "/",
     response_model=list[CandidateResponse],
-    summary="List organization candidates",
+    summary="List candidates",
     description="Retrieve all candidates belonging to the authenticated user's organization.",
 )
-async def get_org_candidates(
+async def get_candidates(
     db: AsyncSession = Depends(get_db),
     current_user: Recruiter = Depends(get_current_recruiter),
 ) -> list[CandidateResponse]:
-    """Retrieve all candidates for the current organization.
+    """List all candidates for the current user's organization.
 
     Args:
         db: Async database session.
-        current_user: Authenticated recruiter.
+        current_user: The authenticated recruiter.
 
     Returns:
-        List of candidates in the organization.
+        A list of candidates in the organization.
     """
     service = CandidateService(db)
-    return await service.get_org_candidates(org_id=current_user.org_id)
+    candidates = await service.get_org_candidates(current_user.org_id)
+    return [CandidateResponse.model_validate(c) for c in candidates]
 
 
 @router.delete(
     "/{candidate_id}",
-    response_model=MessageResponse,
+    status_code=status.HTTP_200_OK,
     summary="Delete a candidate",
-    description="Remove a candidate from the organization by their unique identifier.",
+    description="Remove a candidate and all associated records from the organization.",
 )
 async def delete_candidate(
     candidate_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
     current_user: Recruiter = Depends(get_current_recruiter),
-) -> MessageResponse:
-    """Delete a candidate from the organization.
+) -> dict[str, str]:
+    """Delete a candidate by UUID.
 
     Args:
-        candidate_id: UUID of the candidate to delete.
+        candidate_id: UUID of the candidate to remove.
         db: Async database session.
-        current_user: Authenticated recruiter.
+        current_user: The authenticated recruiter.
 
     Returns:
-        Success message confirming deletion.
+        A success message dictionary.
+
+    Raises:
+        NotFoundError: If the candidate is not found or belongs to another org.
     """
     service = CandidateService(db)
-    result = await service.delete_candidate(
-        org_id=current_user.org_id, candidate_id=candidate_id
-    )
-    return MessageResponse(message=result["message"])
+    return await service.delete_candidate(current_user.org_id, candidate_id)
 
 
 @router.post(
     "/bulk-upload",
-    response_model=BulkUploadResponse,
+    status_code=status.HTTP_200_OK,
     summary="Bulk upload candidates via CSV",
     description="Upload a CSV file to create multiple candidates at once.",
 )
-async def bulk_upload_candidates(
-    file: UploadFile = File(...),
+async def bulk_upload(
+    file: UploadFile,
     db: AsyncSession = Depends(get_db),
     current_user: Recruiter = Depends(get_current_recruiter),
-) -> BulkUploadResponse:
-    """Process a CSV file to create multiple candidates.
+) -> dict:
+    """Process a CSV upload to create multiple candidates.
+
+    The CSV file must contain 'email' and 'name' (or 'full name') columns.
 
     Args:
-        file: The uploaded CSV file containing 'email' and 'name' columns.
+        file: The uploaded CSV file.
         db: Async database session.
-        current_user: Authenticated recruiter.
+        current_user: The authenticated recruiter.
 
     Returns:
-        BulkUploadResponse with count of created records and any errors.
+        A dictionary with the count of created records and any row-level errors.
     """
-    service = CandidateService(db)
-    result = await service.bulk_upload_candidates(org_id=current_user.org_id, file=file)
-    return BulkUploadResponse(
-        created_count=result["created_count"], errors=result["errors"]
-    )
+    file_content = await file.read()
+    try:
+        service = CandidateService(db)
+        return await service.bulk_upload_candidates(
+            current_user.org_id, file_content, file.filename or ""
+        )
+    finally:
+        await file.close()

@@ -5,11 +5,10 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_current_recruiter, get_db
-from src.data.models.notification import Notification
+from src.core.services.notification_service import NotificationService
 from src.data.models.recruiter import Recruiter
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -50,25 +49,9 @@ async def get_notifications(
     Returns:
         List of the 20 most recent notifications.
     """
-    query = (
-        select(Notification)
-        .where(Notification.recruiter_id == current_user.id)
-        .order_by(Notification.created_at.desc())
-        .limit(20)
-    )
-    result = await db.execute(query)
-    notifications = result.scalars().all()
-
-    return [
-        NotificationOut(
-            id=str(notif.id),
-            message=notif.message,
-            target_path=notif.target_path,
-            is_read=notif.is_read,
-            created_at=notif.created_at,
-        )
-        for notif in notifications
-    ]
+    service = NotificationService(db)
+    results = await service.get_user_notifications(current_user.id)
+    return [NotificationOut(**r) for r in results]
 
 
 @router.patch(
@@ -92,11 +75,6 @@ async def mark_read(
     Returns:
         StatusResponse confirming the operation.
     """
-    await db.execute(
-        update(Notification)
-        .where(Notification.id == uuid.UUID(notification_id))
-        .where(Notification.recruiter_id == current_user.id)
-        .values(is_read=True)
-    )
-    await db.commit()
-    return StatusResponse(status="success")
+    service = NotificationService(db)
+    result = await service.mark_as_read(uuid.UUID(notification_id), current_user.id)
+    return StatusResponse(**result)

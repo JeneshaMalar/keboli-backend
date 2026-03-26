@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing a candidate within an organization."""
+
 import uuid
 from datetime import datetime
 
@@ -9,6 +11,12 @@ from src.data.models.base import Base
 
 
 class Candidate(Base):
+    """A candidate registered under a specific organization.
+
+    Candidates are invited to complete AI-powered interviews and may
+    have one or more invitation records linked to different assessments.
+    """
+
     __tablename__ = "candidates"
     __table_args__ = (
         UniqueConstraint("org_id", "email", name="uq_candidates_org_email"),

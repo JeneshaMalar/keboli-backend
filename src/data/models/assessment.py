@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing an interview assessment configuration."""
+
 import uuid
 from datetime import datetime
 
@@ -11,6 +13,12 @@ from src.data.models.base import Base
 
 
 class Assessment(Base):
+    """An interview assessment owned by an organization.
+
+    Stores the job description, scoring criteria, duration, and an
+    optional AI-generated skill graph used to guide AI interviewers.
+    """
+
     __tablename__ = "assessments"
 
     id: Mapped[uuid.UUID] = mapped_column(

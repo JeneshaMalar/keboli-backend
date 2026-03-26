@@ -1,3 +1,5 @@
+"""SQLAlchemy model representing a hiring manager (recruiter) user."""
+
 import uuid
 from datetime import datetime
 from typing import TYPE_CHECKING
@@ -13,6 +15,12 @@ from src.data.models.base import Base
 
 
 class Recruiter(Base):
+    """A hiring manager user within an organization.
+
+    Recruiters authenticate via email/password JWT-based sessions and
+    manage assessments, candidates, and invitations for their org.
+    """
+
     __tablename__ = "hiring_managers"
     __table_args__ = (
         UniqueConstraint("org_id", "email", name="uq_hiring_managers_org_email"),

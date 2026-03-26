@@ -1,10 +1,11 @@
+"""SQLAlchemy model representing an interview transcript."""
+
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from src.data.models.interview_session import InterviewSession
-from typing import Any
 
 from sqlalchemy import DateTime, ForeignKey, Integer, Text, func
 from sqlalchemy.dialects.postgresql import JSONB, UUID
@@ -15,6 +16,12 @@ from src.data.models.base import Base
 
 
 class Transcript(Base):
+    """Full interview transcript for a session, stored as structured JSON.
+
+    Each entry in full_transcript contains a role (interviewer/candidate)
+    and the corresponding text, preserving the conversation order.
+    """
+
     __tablename__ = "interview_transcripts"
 
     session_id: Mapped[uuid.UUID] = mapped_column(
