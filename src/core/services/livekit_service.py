@@ -6,9 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from livekit.api import AccessToken, VideoGrants
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
+from typing import Any
 
 from src.config.settings import settings
 from src.constants.enums import InterviewSessionStatus, InvitationStatus
@@ -21,6 +19,8 @@ from src.data.models.transcript import Transcript
 from src.data.repositories.interview_transcript_repo import (
     InterviewTranscriptRepository,
 )
+from src.data.repositories.interview_repo import InterviewRepository
+from src.data.repositories.invitation_repo import InvitationRepository
 from src.core.services.evaluation_service import EvaluationService
 
 
@@ -37,8 +37,10 @@ class LiveKitService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
+    def __init__(self, session: Any) -> None:
         self.session = session
+        self.repo = InterviewRepository(session)
+        self.invitation_repo = InvitationRepository(session)
         self.transcript_repo = InterviewTranscriptRepository(session)
 
     async def get_or_create_session(
@@ -63,12 +65,12 @@ class LiveKitService:
         Raises:
             ValidationError: If neither invitation_id nor assessment_id is provided.
         """
-        existing = await self.session.get(InterviewSession, session_id)
+        existing = await self.repo.get_by_id(session_id)
 
         if existing:
             ass_id = "unknown"
             if existing.invitation_id:
-                inv = await self.session.get(Invitation, existing.invitation_id)
+                inv = await self.repo.get_invitation(existing.invitation_id)
                 if inv and inv.assessment_id:
                     ass_id = str(inv.assessment_id)
             room_name = f"interview_{session_id}_{ass_id}"
@@ -86,7 +88,7 @@ class LiveKitService:
         resolved_assessment_id: uuid.UUID | None = assessment_id
 
         if invitation_id:
-            invitation = await self.session.get(Invitation, invitation_id)
+            invitation = await self.repo.get_invitation(invitation_id)
             if invitation:
                 if invitation.assessment:
                     duration_minutes = invitation.assessment.duration_minutes or 60
@@ -94,27 +96,25 @@ class LiveKitService:
                 candidate_id = invitation.candidate_id
 
                 if invitation.status == InvitationStatus.SENT:
-                    invitation.status = InvitationStatus.CLICKED
-                    await self.session.flush()
+                    await self.invitation_repo.update(invitation.id, status=InvitationStatus.CLICKED)
         elif assessment_id:
-            assessment = await self.session.get(Assessment, assessment_id)
+            assessment = await self.repo.get_assessment(assessment_id)
             if assessment:
                 duration_minutes = assessment.duration_minutes or 60
 
         if not candidate_id:
             candidate_id = uuid.uuid4()
 
-        new_session = InterviewSession(
-            id=session_id,
-            invitation_id=invitation_id,
-            candidate_id=candidate_id,
-            status=InterviewSessionStatus.IN_PROGRESS,
-            remaining_seconds=duration_minutes * 60,
-            started_at=datetime.utcnow(),
+        new_session = await self.repo.create(
+            {
+                "id": session_id,
+                "invitation_id": invitation_id,
+                "candidate_id": candidate_id,
+                "status": InterviewSessionStatus.IN_PROGRESS,
+                "remaining_seconds": duration_minutes * 60,
+                "started_at": datetime.utcnow(),
+            }
         )
-        self.session.add(new_session)
-        await self.session.commit()
-        await self.session.refresh(new_session)
 
         room_name = f"interview_{session_id}_{resolved_assessment_id}"
         token = self._generate_token(str(session_id), room_name)
@@ -163,17 +163,7 @@ class LiveKitService:
         Returns:
             A status confirmation dictionary.
         """
-        values: dict[str, Any] = {"last_heartbeat": datetime.utcnow()}
-        if remaining_seconds is not None:
-            values["remaining_seconds"] = remaining_seconds
-
-        query = (
-            update(InterviewSession)
-            .where(InterviewSession.id == session_id)
-            .values(**values)
-        )
-        await self.session.execute(query)
-        await self.session.commit()
+        await self.repo.update_heartbeat(session_id, remaining_seconds)
         return {"status": "ok"}
 
     async def complete_session(
@@ -191,31 +181,22 @@ class LiveKitService:
         Raises:
             NotFoundError: If the session does not exist.
         """
-        interview_session = await self.session.get(InterviewSession, session_id)
+        interview_session = await self.repo.get_by_id(session_id)
         if not interview_session:
             raise NotFoundError(
                 resource="InterviewSession", resource_id=str(session_id)
             )
 
-        query = (
-            update(InterviewSession)
-            .where(InterviewSession.id == session_id)
-            .values(
-                status=InterviewSessionStatus.COMPLETED,
-                completed_at=datetime.utcnow(),
-            )
+        await self.repo.update(
+            session_id,
+            status=InterviewSessionStatus.COMPLETED,
+            completed_at=datetime.utcnow(),
         )
-        await self.session.execute(query)
 
         if interview_session.invitation_id:
-            inv_query = (
-                update(Invitation)
-                .where(Invitation.id == interview_session.invitation_id)
-                .values(status=InvitationStatus.COMPLETED)
+            await self.invitation_repo.update(
+                interview_session.invitation_id, status=InvitationStatus.COMPLETED
             )
-            await self.session.execute(inv_query)
-
-        await self.session.commit()
         
         try:
             eval_service = EvaluationService(self.session)
@@ -281,20 +262,7 @@ class LiveKitService:
         Raises:
             NotFoundError: If the session is not found.
         """
-        query = (
-            select(InterviewSession)
-            .where(InterviewSession.id == session_id)
-            .options(
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.assessment
-                ),
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.candidate
-                ),
-            )
-        )
-        result = await self.session.execute(query)
-        session = result.scalar_one_or_none()
+        session = await self.repo.get_session_with_relations(session_id)
 
         if not session:
             raise NotFoundError(resource="InterviewSession", resource_id=str(session_id))
@@ -331,11 +299,5 @@ class LiveKitService:
         Returns:
             A status confirmation dictionary.
         """
-        query = (
-            update(InterviewSession)
-            .where(InterviewSession.id == session_id)
-            .values(**kwargs)
-        )
-        await self.session.execute(query)
-        await self.session.commit()
+        await self.repo.update(session_id, **kwargs)
         return {"status": "updated"}

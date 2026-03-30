@@ -9,6 +9,8 @@ from sqlalchemy.orm import joinedload, selectinload
 from src.data.models.candidate import Candidate
 from src.data.models.invitation import Invitation
 from src.data.models.interview_session import InterviewSession
+from src.constants.enums import InvitationStatus
+from datetime import datetime, timezone
 
 
 class InvitationRepository:
@@ -32,7 +34,8 @@ class InvitationRepository:
         """
         instance = Invitation(**invitation_data)
         self.session.add(instance)
-        await self.session.flush()
+        await self.session.commit()
+        await self.session.refresh(instance)
         return instance
 
     async def get_by_id(self, invitation_id: uuid.UUID) -> Invitation | None:
@@ -126,6 +129,7 @@ class InvitationRepository:
             .returning(Invitation)
         )
         result = await self.session.execute(query)
+        await self.session.commit()
         return result.scalar_one()
 
     async def delete(self, invitation_id: uuid.UUID) -> None:
@@ -136,3 +140,21 @@ class InvitationRepository:
         """
         query = delete(Invitation).where(Invitation.id == invitation_id)
         await self.session.execute(query)
+        await self.session.commit()
+
+    async def mark_expired_for_org(self, org_id: uuid.UUID) -> None:
+        """Mark eligible invitations as expired for a specific organization."""
+        candidates_query = select(Candidate.id).where(Candidate.org_id == org_id)
+        update_query = (
+            update(Invitation)
+            .where(
+                Invitation.candidate_id.in_(candidates_query),
+                Invitation.expires_at < datetime.now(timezone.utc),
+                Invitation.status.not_in(
+                    [InvitationStatus.EXPIRED, InvitationStatus.COMPLETED]
+                ),
+            )
+            .values(status=InvitationStatus.EXPIRED)
+        )
+        await self.session.execute(update_query)
+        await self.session.commit()

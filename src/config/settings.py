@@ -45,14 +45,12 @@ class Settings(BaseSettings):
     SENDGRID_API_KEY: str = ""
     SENDGRID_FROM_EMAIL: str = ""
 
-    FRONTEND_URL: str = "http://localhost:5173"
-    FRONTEND_ORIGIN: str = "http://localhost:5173"
-    INTERVIEW_AGENT_URL: str = "http://localhost:8001"
-    EVALUATION_SERVICE_URL: str = "http://localhost:8002"
+    FRONTEND_URL: str
+    FRONTEND_ORIGIN: str
+    INTERVIEW_AGENT_URL: str
+    EVALUATION_SERVICE_URL: str
 
-    CORS_ORIGINS: list[str] = [
-        "http://localhost:5173",
-    ]
+    CORS_ORIGINS: list[str] = []
     CORS_ALLOW_CREDENTIALS: bool = True
     CORS_ALLOW_METHODS: list[str] = ["*"]
     CORS_ALLOW_HEADERS: list[str] = ["*"]

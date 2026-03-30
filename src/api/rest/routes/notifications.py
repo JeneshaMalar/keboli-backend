@@ -7,9 +7,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.core.services.notification_service import NotificationService
-from src.data.models.recruiter import Recruiter
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -38,7 +37,7 @@ class StatusResponse(BaseModel):
 )
 async def get_notifications(
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> list[NotificationOut]:
     """Retrieve the latest notifications for the current user.
 
@@ -63,7 +62,7 @@ async def get_notifications(
 async def mark_read(
     notification_id: str,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> StatusResponse:
     """Mark a notification as read.
 

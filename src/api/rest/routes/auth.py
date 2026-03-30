@@ -4,15 +4,12 @@ from fastapi import APIRouter, Depends, Response
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.config.settings import settings
-from src.core.exceptions import UnauthorizedError
 from src.core.security.jwt import create_access_token
-from src.core.security.password import verify_password
 from src.core.security.roles import Role
 from src.core.services.registration_service import RegistrationService
-from src.data.models.recruiter import Recruiter
-from src.data.repositories.auth_repo import AuthRepository
+from src.core.services.auth_service import AuthService
 from src.schemas.auth_schema import LoginRequest, LoginResponse, OrgCreate, RecruiterOut
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -55,10 +52,8 @@ async def login(
     Raises:
         UnauthorizedError: If the credentials are invalid.
     """
-    repo = AuthRepository(db)
-    recruiter = await repo.get_recruiter_by_email(payload.email)
-    if not recruiter or not verify_password(payload.password, recruiter.password_hash):
-        raise UnauthorizedError(message="Invalid credentials")
+    service = AuthService(db)
+    recruiter = await service.authenticate_recruiter(payload.email, payload.password)
 
     token = create_access_token(
         subject=str(recruiter.id), role=Role.HIRING_MANAGER.value
@@ -139,7 +134,7 @@ async def logout(response: Response) -> LogoutResponse:
     summary="Get current user",
     description="Return the profile of the currently authenticated recruiter.",
 )
-async def me(recruiter: Recruiter = Depends(get_current_recruiter)) -> RecruiterOut:
+async def me(recruiter: CurrentRecruiter = Depends(get_current_recruiter)) -> RecruiterOut:
     """Return the authenticated recruiter's profile.
 
     Args:

@@ -33,7 +33,8 @@ class CandidateRepository:
         """
         instance = Candidate(**candidate_data)
         self.session.add(instance)
-        await self.session.flush()
+        await self.session.commit()
+        await self.session.refresh(instance)
         return instance
 
     async def create_bulk(self, candidates_data: list[dict[str, object]]) -> list[Candidate]:
@@ -47,7 +48,7 @@ class CandidateRepository:
         """
         instances = [Candidate(**data) for data in candidates_data]
         self.session.add_all(instances)
-        await self.session.flush()
+        await self.session.commit()
         return instances
 
     async def get_by_id(self, candidate_id: uuid.UUID) -> Candidate | None:
@@ -113,6 +114,7 @@ class CandidateRepository:
             .returning(Candidate)
         )
         result = await self.session.execute(query)
+        await self.session.commit()
         return result.scalar_one()
 
     async def delete(self, candidate_id: uuid.UUID) -> None:
@@ -149,3 +151,4 @@ class CandidateRepository:
         await self.session.execute(
             delete(Candidate).where(Candidate.id == candidate_id)
         )
+        await self.session.commit()

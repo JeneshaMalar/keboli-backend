@@ -12,6 +12,9 @@ from src.constants.enums import LogLevel
 logger = logging.getLogger(__name__)
 
 
+from typing import Any
+from src.data.repositories.log_repo import LogRepository
+
 class LogService:
     """Service layer for persisting structured system log entries.
 
@@ -19,8 +22,8 @@ class LogService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: Any) -> None:
+        self.repo = LogRepository(session)
 
     async def create_log(self, log_data: dict[str, object]) -> SystemLog:
         """Create and persist a structured system log entry.
@@ -83,10 +86,7 @@ class LogService:
                 if k in valid_keys and v is not None
             }
 
-            new_log = SystemLog(**sanitized_data)
-            self.session.add(new_log)
-            await self.session.commit()
-            await self.session.refresh(new_log)
+            new_log = await self.repo.create(sanitized_data)
             return new_log
         except AppError:
             raise

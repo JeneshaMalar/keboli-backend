@@ -65,3 +65,23 @@ class AuthRepository:
         )
         self.session.add(recruiter)
         return recruiter
+
+    async def register_workspace(self, org_name: str, email: str, password_hash: str) -> tuple[Organization, Recruiter]:
+        """Atomically create an organization and admin recruiter."""
+        try:
+            async with self.session.begin_nested():
+                org = Organization(name=org_name)
+                self.session.add(org)
+                await self.session.flush()
+
+                recruiter = Recruiter(
+                    org_id=org.id, email=email, password_hash=password_hash, role="HIRING_MANAGER"
+                )
+                self.session.add(recruiter)
+                await self.session.flush()
+
+            await self.session.commit()
+            return org, recruiter
+        except Exception:
+            await self.session.rollback()
+            raise

@@ -5,18 +5,10 @@ import uuid
 from typing import Any
 
 import httpx
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload, selectinload
-
 from src.config.settings import settings
 from src.core.exceptions import AppError, NotFoundError
-from src.data.models.assessment import Assessment
-from src.data.models.candidate import Candidate
 from src.data.models.evaluation import Evaluation
-from src.data.models.interview_session import InterviewSession
-from src.data.models.invitation import Invitation
-from src.data.models.transcript import Transcript
+from src.data.repositories.evaluation_repo import EvaluationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -29,8 +21,8 @@ class EvaluationService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: Any) -> None:
+        self.repo = EvaluationRepository(session)
 
     async def trigger_evaluation(self, session_id: uuid.UUID) -> dict[str, str]:
         """Trigger the external evaluation service for a completed interview.
@@ -91,26 +83,8 @@ class EvaluationService:
             AppError: If saving or updating the evaluation fails.
         """
         try:
-            query = select(Evaluation).where(Evaluation.session_id == session_id)
-            result = await self.session.execute(query)
-            evaluation = result.scalar_one_or_none()
-
-            if evaluation:
-                for key, value in evaluation_data.items():
-                    if hasattr(evaluation, key) and value is not None:
-                        setattr(evaluation, key, value)
-                logger.info("Updated existing evaluation for session %s", session_id)
-            else:
-                evaluation_data["session_id"] = session_id
-                evaluation = Evaluation(**evaluation_data)
-                self.session.add(evaluation)
-                logger.info("Created new evaluation for session %s", session_id)
-
-            await self.session.commit()
-            await self.session.refresh(evaluation)
-            return evaluation
+            return await self.repo.save(session_id, evaluation_data)
         except Exception as e:
-            await self.session.rollback()
             logger.error("Failed to save evaluation for session %s: %s", session_id, e)
             raise AppError(
                 message=f"Failed to save evaluation: {e!s}",
@@ -129,9 +103,7 @@ class EvaluationService:
         Returns:
             The Evaluation if found, otherwise None.
         """
-        query = select(Evaluation).where(Evaluation.session_id == session_id)
-        result = await self.session.execute(query)
-        return result.scalar_one_or_none()
+        return await self.repo.get_by_session(session_id)
 
     async def get_evaluation_report(
         self, session_id: uuid.UUID, org_id: uuid.UUID
@@ -151,22 +123,7 @@ class EvaluationService:
         Raises:
             NotFoundError: If the session or related data is not found.
         """
-        session_query = (
-            select(InterviewSession)
-            .where(InterviewSession.id == session_id)
-            .options(
-                joinedload(InterviewSession.evaluation),
-                joinedload(InterviewSession.transcript),
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.candidate
-                ),
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.assessment
-                ),
-            )
-        )
-        result = await self.session.execute(session_query)
-        interview_session = result.scalar_one_or_none()
+        interview_session = await self.repo.get_session_with_relations(session_id)
 
         if not interview_session:
             raise NotFoundError(resource="InterviewSession", resource_id=str(session_id))
@@ -234,16 +191,9 @@ class EvaluationService:
         Raises:
             NotFoundError: If no evaluation exists for the session.
         """
-        evaluation = await self.get_evaluation_by_session(session_id)
+        evaluation = await self.repo.update_decision(session_id, update_data)
         if not evaluation:
             raise NotFoundError(resource="Evaluation", resource_id=str(session_id))
-
-        for key, value in update_data.items():
-            if value is not None:
-                setattr(evaluation, key, value)
-
-        await self.session.commit()
-        await self.session.refresh(evaluation)
         return evaluation
 
     async def get_org_evaluations(
@@ -257,23 +207,7 @@ class EvaluationService:
         Returns:
             List of evaluation summary dictionaries.
         """
-        query = (
-            select(InterviewSession)
-            .join(Invitation, InterviewSession.invitation_id == Invitation.id)
-            .join(Candidate, Invitation.candidate_id == Candidate.id)
-            .where(Candidate.org_id == org_id)
-            .options(
-                joinedload(InterviewSession.evaluation),
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.candidate
-                ),
-                joinedload(InterviewSession.invitation).joinedload(
-                    Invitation.assessment
-                ),
-            )
-        )
-        result = await self.session.execute(query)
-        sessions = result.scalars().unique().all()
+        sessions = await self.repo.get_org_evaluations(org_id)
 
         evaluations = []
         for s in sessions:

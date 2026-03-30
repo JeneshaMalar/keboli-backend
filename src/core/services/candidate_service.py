@@ -25,7 +25,6 @@ class CandidateService:
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        self.session = session
         self.repo = CandidateRepository(session)
 
     async def create_candidate(
@@ -53,8 +52,6 @@ class CandidateService:
         candidate_data["org_id"] = org_id
 
         candidate = await self.repo.create(candidate_data)
-        await self.session.commit()
-        await self.session.refresh(candidate)
         return candidate
 
     async def get_org_candidates(self, org_id: uuid.UUID) -> list[Candidate]:
@@ -88,7 +85,6 @@ class CandidateService:
             raise NotFoundError(resource="Candidate", resource_id=str(candidate_id))
 
         await self.repo.delete(candidate_id)
-        await self.session.commit()
         return {"message": "Candidate deleted successfully"}
 
     async def bulk_upload_candidates(
@@ -162,7 +158,6 @@ class CandidateService:
 
             if candidates_to_create:
                 created = await self.repo.create_bulk(candidates_to_create)
-                await self.session.commit()
                 return {"created_count": len(created), "errors": errors}
             else:
                 return {"created_count": 0, "errors": errors}
@@ -173,6 +168,5 @@ class CandidateService:
                 message=f"File encoding error: {e!s}"
             ) from e
         except Exception as e:
-            await self.session.rollback()
             logger.error("Bulk upload failed for org %s: %s", org_id, e)
             raise ValidationError(message=f"Bulk upload failed: {e!s}") from e

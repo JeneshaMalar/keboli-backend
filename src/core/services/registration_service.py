@@ -17,8 +17,7 @@ class RegistrationService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: Any) -> None:
         self.repo = AuthRepository(session)
 
     async def register_new_workspace(
@@ -45,23 +44,11 @@ class RegistrationService:
         hashed_pw = hash_password(password_hash)
 
         try:
-            async with self.session.begin_nested():
-                org = await self.repo.create_organization(org_name)
-
-                admin = await self.repo.create_recruiter(
-                    org_id=org.id,
-                    email=admin_email,
-                    password_hash=hashed_pw,
-                    role="HIRING_MANAGER",
-                )
-
-            await self.session.commit()
+            org, admin = await self.repo.register_workspace(org_name, admin_email, hashed_pw)
             return {"org_id": org.id, "admin_id": admin.id}
-
         except ConflictError:
             raise
         except Exception as e:
-            await self.session.rollback()
             raise AppError(
                 message=f"Registration failed: {e!s}",
                 status_code=500,
