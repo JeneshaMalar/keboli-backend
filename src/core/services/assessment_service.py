@@ -23,7 +23,6 @@ class AssessmentService:
     """
 
     def __init__(self, session: AsyncSession) -> None:
-        self.session = session
         self.repo = AssessmentRepository(session)
 
     async def create_assessment(
@@ -50,9 +49,6 @@ class AssessmentService:
         data["org_id"] = org_id
 
         assessment = await self.repo.create(data)
-
-        await self.session.commit()
-        await self.session.refresh(assessment)
 
         assessment_id = str(assessment.id)
         asyncio.create_task(self._trigger_skill_graph_generation(assessment_id))
@@ -104,5 +100,16 @@ class AssessmentService:
             raise NotFoundError(resource="Assessment", resource_id=str(assessment_id))
 
         updated = await self.repo.update(assessment_id, is_active=active_status)
-        await self.session.commit()
         return updated
+
+    async def get_assessment(self, assessment_id: uuid.UUID) -> Assessment | None:
+        """Fetch a single assessment by primary key."""
+        return await self.repo.get_by_id(assessment_id)
+
+    async def get_org_assessments(self, org_id: uuid.UUID) -> list[Assessment]:
+        """Retrieve all assessments belonging to an organization."""
+        return await self.repo.get_multi_by_org(org_id)
+
+    async def update_assessment(self, assessment_id: uuid.UUID, data: dict[str, object]) -> Assessment:
+        """Update an assessment's fields."""
+        return await self.repo.update(assessment_id, **data)

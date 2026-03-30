@@ -5,9 +5,8 @@ import uuid
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.core.services.evaluation_service import EvaluationService
-from src.data.models.recruiter import Recruiter
 from src.schemas.evaluation_schema import (
     EvaluationCreate,
     EvaluationReportResponse,
@@ -78,7 +77,7 @@ async def save_evaluation(
 async def get_evaluation_report(
     session_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> EvaluationReportResponse:
     """Retrieve the full evaluation report for a session.
 
@@ -105,7 +104,7 @@ async def update_admin_decision(
     session_id: uuid.UUID,
     payload: EvaluationUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> EvaluationResponse:
     """Update an evaluation with admin overrides.
 
@@ -133,7 +132,7 @@ async def update_admin_decision(
 )
 async def list_evaluations(
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> list[dict]:
     """List all evaluations for the current user's organization.
 

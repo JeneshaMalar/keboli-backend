@@ -10,7 +10,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_current_recruiter, get_db
 from src.core.services.livekit_service import LiveKitService
-from src.data.models.recruiter import Recruiter
 from src.core.services.invitation_service import InvitationService
 
 logger = logging.getLogger(__name__)

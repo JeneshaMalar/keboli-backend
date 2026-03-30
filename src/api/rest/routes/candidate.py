@@ -5,9 +5,8 @@ import uuid
 from fastapi import APIRouter, Depends, UploadFile, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.core.services.candidate_service import CandidateService
-from src.data.models.recruiter import Recruiter
 from src.schemas.candidate_schema import CandidateResponse
 
 router = APIRouter(prefix="/candidate", tags=["candidate"])
@@ -23,7 +22,7 @@ router = APIRouter(prefix="/candidate", tags=["candidate"])
 async def create_candidate(
     payload: dict,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> CandidateResponse:
     """Create a new candidate in the current user's organization.
 
@@ -51,7 +50,7 @@ async def create_candidate(
 )
 async def get_candidates(
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> list[CandidateResponse]:
     """List all candidates for the current user's organization.
 
@@ -76,7 +75,7 @@ async def get_candidates(
 async def delete_candidate(
     candidate_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> dict[str, str]:
     """Delete a candidate by UUID.
 
@@ -104,7 +103,7 @@ async def delete_candidate(
 async def bulk_upload(
     file: UploadFile,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> dict:
     """Process a CSV upload to create multiple candidates.
 

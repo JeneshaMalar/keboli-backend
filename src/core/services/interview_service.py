@@ -15,14 +15,8 @@ from uuid import UUID
 
 import httpx
 from fastapi import WebSocket
-from sqlalchemy import select, update
-from sqlalchemy.orm import joinedload, selectinload
-
-from src.config.settings import settings
-from src.constants.enums import InterviewSessionStatus, InvitationStatus
-from src.data.models.assessment import Assessment
-from src.data.models.interview_session import InterviewSession
-from src.data.models.invitation import Invitation
+from src.data.repositories.interview_repo import InterviewRepository
+from src.data.repositories.invitation_repo import InvitationRepository
 from src.data.repositories.interview_transcript_repo import (
     InterviewTranscriptRepository,
 )
@@ -59,7 +53,8 @@ class InterviewService:
         assessment_id: str,
         invitation_id: UUID | None = None,
     ) -> None:
-        self.db = db
+        self.repo = InterviewRepository(db)
+        self.invitation_repo = InvitationRepository(db)
         self.session_id = session_id
         self.assessment_id = assessment_id
         self.invitation_id = invitation_id
@@ -162,25 +157,16 @@ class InterviewService:
         self.is_completed = True
 
         async with self.db_lock:
-            query = (
-                update(InterviewSession)
-                .where(InterviewSession.id == self.session_id)
-                .values(
-                    status=InterviewSessionStatus.COMPLETED,
-                    completed_at=datetime.utcnow(),
-                )
+            await self.repo.update(
+                self.session_id,
+                status=InterviewSessionStatus.COMPLETED,
+                completed_at=datetime.utcnow(),
             )
-            await self.db.execute(query)
 
             if self.invitation_id:
-                inv_query = (
-                    update(Invitation)
-                    .where(Invitation.id == self.invitation_id)
-                    .values(status=InvitationStatus.COMPLETED)
+                await self.invitation_repo.update(
+                    self.invitation_id, status=InvitationStatus.COMPLETED
                 )
-                await self.db.execute(inv_query)
-
-            await self.db.commit()
 
         if auto_evaluate:
             asyncio.create_task(self._trigger_evaluation())
@@ -196,16 +182,9 @@ class InterviewService:
             while not self.is_completed:
                 await asyncio.sleep(5)
                 async with self.db_lock:
-                    query = (
-                        update(InterviewSession)
-                        .where(InterviewSession.id == self.session_id)
-                        .values(
-                            last_heartbeat=datetime.utcnow(),
-                            remaining_seconds=InterviewSession.remaining_seconds - 5,
-                        )
-                    )
-                    await self.db.execute(query)
-                    await self.db.commit()
+                    session = await self.repo.get_by_id(self.session_id)
+                    if session:
+                        await self.repo.update_heartbeat(self.session_id, session.remaining_seconds - 5)
         except asyncio.CancelledError:
             pass
         except OSError as e:
@@ -218,20 +197,14 @@ class InterviewService:
     async def _init_or_resume_session(self) -> None:
         """Initialize a new session or resume an existing one from the database."""
         async with self.db_lock:
-            session = await self.db.scalar(
-                select(InterviewSession).where(InterviewSession.id == self.session_id)
-            )
+            session = await self.repo.get_by_id(self.session_id)
 
             if not session:
                 duration_mins = 60
                 candidate_id = None
 
                 if self.invitation_id:
-                    invitation = await self.db.scalar(
-                        select(Invitation)
-                        .options(selectinload(Invitation.assessment))
-                        .where(Invitation.id == self.invitation_id)
-                    )
+                    invitation = await self.repo.get_invitation(self.invitation_id)
 
                     if invitation:
                         duration_mins = (
@@ -240,7 +213,7 @@ class InterviewService:
                             else 60
                         )
                         candidate_id = invitation.candidate_id
-                        invitation.status = InvitationStatus.CLICKED
+                        await self.invitation_repo.update(invitation.id, status=InvitationStatus.CLICKED)
                     else:
                         logger.warning(
                             "Invitation %s not found for session %s",
@@ -249,8 +222,7 @@ class InterviewService:
                         )
 
                 elif self.assessment_id:
-                    assessment = await self.db.get(
-                        Assessment,
+                    assessment = await self.repo.get_assessment(
                         UUID(self.assessment_id)
                         if isinstance(self.assessment_id, str)
                         else self.assessment_id,
@@ -267,41 +239,36 @@ class InterviewService:
                 if not candidate_id:
                     candidate_id = uuid.uuid4()
 
-                session = InterviewSession(
-                    id=self.session_id,
-                    invitation_id=self.invitation_id,
-                    candidate_id=candidate_id,
-                    status=InterviewSessionStatus.IN_PROGRESS,
-                    remaining_seconds=duration_mins * 60,
-                    started_at=datetime.utcnow(),
-                )
-                self.db.add(session)
+                session_data = {
+                    "id": self.session_id,
+                    "invitation_id": self.invitation_id,
+                    "candidate_id": candidate_id,
+                    "status": InterviewSessionStatus.IN_PROGRESS,
+                    "remaining_seconds": duration_mins * 60,
+                    "started_at": datetime.utcnow(),
+                }
+                session = await self.repo.create(session_data)
             elif session:
-                session.status = InterviewSessionStatus.IN_PROGRESS
+                update_kwargs = {"status": InterviewSessionStatus.IN_PROGRESS}
                 if not session.started_at:
-                    session.started_at = datetime.utcnow()
+                    update_kwargs["started_at"] = datetime.utcnow()
 
                 if session.remaining_seconds == 3600 or session.remaining_seconds <= 0:
                     asmt = None
                     if session.invitation_id:
-                        inv = await self.db.scalar(
-                            select(Invitation)
-                            .options(joinedload(Invitation.assessment))
-                            .where(Invitation.id == session.invitation_id)
-                        )
+                        inv = await self.repo.get_invitation(session.invitation_id)
                         asmt = inv.assessment if inv else None
                     elif self.assessment_id:
-                        asmt = await self.db.get(
-                            Assessment,
+                        asmt = await self.repo.get_assessment(
                             UUID(self.assessment_id)
                             if isinstance(self.assessment_id, str)
                             else self.assessment_id,
                         )
 
                     if asmt and session.remaining_seconds == 3600:
-                        session.remaining_seconds = asmt.duration_minutes * 60
-
-            await self.db.commit()
+                        update_kwargs["remaining_seconds"] = asmt.duration_minutes * 60
+                
+                await self.repo.update(self.session_id, **update_kwargs)
 
     async def start(self, ws: WebSocket) -> None:
         """Start an interview session over WebSocket.

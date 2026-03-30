@@ -6,11 +6,9 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.core.exceptions import NotFoundError
 from src.core.services.assessment_service import AssessmentService
-from src.data.models.recruiter import Recruiter
-from src.data.repositories.assessment_repo import AssessmentRepository
 from src.schemas.assessment_schema import (
     AssessmentCreate,
     AssessmentResponse,
@@ -36,7 +34,7 @@ class SkillGraphUpdate(BaseModel):
 async def create_new_assessment(
     payload: AssessmentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> AssessmentResponse:
     """Create a new assessment for the authenticated user's organization.
 
@@ -63,7 +61,7 @@ async def create_new_assessment(
 )
 async def get_org_assessments(
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> list[AssessmentResponse]:
     """List all assessments for the authenticated user's organization.
 
@@ -74,8 +72,8 @@ async def get_org_assessments(
     Returns:
         A list of all organization assessments.
     """
-    repo = AssessmentRepository(db)
-    assessments = await repo.get_multi_by_org(current_user.org_id)
+    service = AssessmentService(db)
+    assessments = await service.get_org_assessments(current_user.org_id)
     return [AssessmentResponse.model_validate(a) for a in assessments]
 
 
@@ -101,8 +99,8 @@ async def get_assessment(
     Raises:
         NotFoundError: If no assessment matches the given UUID.
     """
-    repo = AssessmentRepository(db)
-    assessment = await repo.get_by_id(assessment_id)
+    service = AssessmentService(db)
+    assessment = await service.get_assessment(assessment_id)
     if not assessment:
         raise NotFoundError(resource="Assessment", resource_id=str(assessment_id))
     return AssessmentResponse.model_validate(assessment)
@@ -118,7 +116,7 @@ async def update_assessment(
     assessment_id: uuid.UUID,
     payload: AssessmentUpdate,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> AssessmentResponse:
     """Update specific fields of an existing assessment.
 
@@ -134,15 +132,14 @@ async def update_assessment(
     Raises:
         NotFoundError: If no assessment matches the given UUID.
     """
-    repo = AssessmentRepository(db)
-    assessment = await repo.get_by_id(assessment_id)
+    service = AssessmentService(db)
+    assessment = await service.get_assessment(assessment_id)
     if not assessment:
         raise NotFoundError(resource="Assessment", resource_id=str(assessment_id))
 
     update_data = payload.model_dump(exclude_unset=True)
     if update_data:
-        updated = await repo.update(assessment_id, **update_data)
-        await db.commit()
+        updated = await service.update_assessment(assessment_id, update_data)
         return AssessmentResponse.model_validate(updated)
     return AssessmentResponse.model_validate(assessment)
 
@@ -156,7 +153,7 @@ async def update_assessment(
 async def toggle_assessment_status(
     assessment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> AssessmentResponse:
     """Toggle the active status of an assessment.
 
@@ -171,12 +168,11 @@ async def toggle_assessment_status(
     Raises:
         NotFoundError: If no assessment matches the given UUID.
     """
-    repo = AssessmentRepository(db)
-    assessment = await repo.get_by_id(assessment_id)
+    service = AssessmentService(db)
+    assessment = await service.get_assessment(assessment_id)
     if not assessment:
         raise NotFoundError(resource="Assessment", resource_id=str(assessment_id))
 
-    service = AssessmentService(db)
     updated = await service.toggle_status(assessment_id, not assessment.is_active)
     return AssessmentResponse.model_validate(updated)
 
@@ -208,11 +204,10 @@ async def update_skill_graph(
     Raises:
         NotFoundError: If no assessment matches the given UUID.
     """
-    repo = AssessmentRepository(db)
-    assessment = await repo.get_by_id(assessment_id)
+    service = AssessmentService(db)
+    assessment = await service.get_assessment(assessment_id)
     if not assessment:
         raise NotFoundError(resource="Assessment", resource_id=str(assessment_id))
 
-    updated = await repo.update(assessment_id, skill_graph=payload.skill_graph)
-    await db.commit()
+    updated = await service.update_assessment(assessment_id, {"skill_graph": payload.skill_graph})
     return AssessmentResponse.model_validate(updated)

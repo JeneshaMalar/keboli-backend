@@ -4,10 +4,8 @@ import logging
 import uuid
 from datetime import datetime
 
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from src.data.models.notification import Notification
+from typing import Any
+from src.data.repositories.notification_repo import NotificationRepository
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +17,8 @@ class NotificationService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: Any) -> None:
+        self.repo = NotificationRepository(session)
 
     async def get_user_notifications(
         self, recruiter_id: uuid.UUID, limit: int = 20
@@ -34,14 +32,7 @@ class NotificationService:
         Returns:
             List of notification dictionaries.
         """
-        query = (
-            select(Notification)
-            .where(Notification.recruiter_id == recruiter_id)
-            .order_by(Notification.created_at.desc())
-            .limit(limit)
-        )
-        result = await self.session.execute(query)
-        notifications = result.scalars().all()
+        notifications = await self.repo.get_user_notifications(recruiter_id, limit)
 
         return [
             {
@@ -66,11 +57,5 @@ class NotificationService:
         Returns:
             A status confirmation dictionary.
         """
-        await self.session.execute(
-            update(Notification)
-            .where(Notification.id == notification_id)
-            .where(Notification.recruiter_id == recruiter_id)
-            .values(is_read=True)
-        )
-        await self.session.commit()
+        await self.repo.mark_as_read(notification_id, recruiter_id)
         return {"status": "success"}

@@ -10,7 +10,15 @@ from src.config.settings import settings
 from src.core.security.jwt import decode_access_token
 from src.core.security.roles import Role
 from src.data.database.session import async_session_factory
-from src.data.models.recruiter import Recruiter
+from pydantic import BaseModel
+import uuid
+
+class CurrentRecruiter(BaseModel):
+    """Pydantic model representing the currently authenticated user."""
+    id: uuid.UUID
+    email: str
+    org_id: uuid.UUID
+    role: str
 
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
@@ -26,7 +34,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def get_current_recruiter(
     request: Request,
     db: AsyncSession = Depends(get_db),
-) -> Recruiter:
+) -> CurrentRecruiter:
     """Extract and validate the current recruiter from the JWT cookie.
 
     Args:
@@ -34,7 +42,7 @@ async def get_current_recruiter(
         db: Async database session.
 
     Returns:
-        The authenticated Recruiter ORM instance.
+        The authenticated CurrentRecruiter schema.
 
     Raises:
         HTTPException: If the cookie is missing, the token is invalid,
@@ -60,19 +68,24 @@ async def get_current_recruiter(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token"
         )
 
+    from src.data.models.recruiter import Recruiter
     recruiter = await db.get(Recruiter, recruiter_id)
     if not recruiter:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found"
         )
 
-    recruiter.role = role
-    return recruiter
+    return CurrentRecruiter(
+        id=recruiter.id,
+        email=recruiter.email,
+        org_id=recruiter.org_id,
+        role=role,
+    )
 
 
 async def require_hiring_manager(
-    recruiter: Recruiter = Depends(get_current_recruiter),
-) -> Recruiter:
+    recruiter: CurrentRecruiter = Depends(get_current_recruiter),
+) -> CurrentRecruiter:
     """Verify the authenticated user has the HIRING_MANAGER role.
 
     Args:

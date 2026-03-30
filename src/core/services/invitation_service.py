@@ -6,7 +6,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Any
 
 from src.constants.enums import InvitationStatus
 from src.core.exceptions import ForbiddenError, NotFoundError
@@ -26,8 +26,7 @@ class InvitationService:
         session: Async SQLAlchemy session for database operations.
     """
 
-    def __init__(self, session: AsyncSession) -> None:
-        self.session = session
+    def __init__(self, session: Any) -> None:
         self.repo = InvitationRepository(session)
         self.candidate_repo = CandidateRepository(session)
         self.assessment_repo = AssessmentRepository(session)
@@ -74,8 +73,6 @@ class InvitationService:
         }
 
         invitation = await self.repo.create(invitation_data)
-        await self.session.commit()
-        await self.session.refresh(invitation)
 
         email_service = EmailService()
         await email_service.send_invitation_email(
@@ -101,21 +98,7 @@ class InvitationService:
         Returns:
             A list of all invitations associated with the organization's candidates.
         """
-        candidates_query = select(Candidate.id).where(Candidate.org_id == org_id)
-        update_query = (
-            update(Invitation)
-            .where(
-                Invitation.candidate_id.in_(candidates_query),
-                Invitation.expires_at < datetime.now(timezone.utc),
-                Invitation.status.not_in(
-                    [InvitationStatus.EXPIRED, InvitationStatus.COMPLETED]
-                ),
-            )
-            .values(status=InvitationStatus.EXPIRED)
-        )
-        await self.session.execute(update_query)
-        await self.session.commit()
-
+        await self.repo.mark_expired_for_org(org_id)
         return await self.repo.get_multi_by_org(org_id)
 
     async def revoke_invitation(
@@ -143,7 +126,6 @@ class InvitationService:
             raise ForbiddenError(message="Forbidden")
 
         await self.repo.update(invitation_id, status=InvitationStatus.EXPIRED)
-        await self.session.commit()
         return {"message": "Invitation revoked", "invitation_id": invitation_id}
 
     async def validate_token(self, token: str) -> Invitation:
@@ -174,8 +156,7 @@ class InvitationService:
             invitation.status != InvitationStatus.EXPIRED
             and invitation.expires_at < datetime.now(timezone.utc)
         ):
-            invitation.status = InvitationStatus.EXPIRED
-            await self.session.commit()
+            invitation = await self.repo.update(invitation.id, status=InvitationStatus.EXPIRED)
 
         if invitation.status == InvitationStatus.EXPIRED:
             raise ForbiddenError(message="Invitation has expired")

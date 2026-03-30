@@ -6,9 +6,8 @@ from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.api.rest.dependencies import get_current_recruiter, get_db
+from src.api.rest.dependencies import get_current_recruiter, get_db, CurrentRecruiter
 from src.core.services.invitation_service import InvitationService
-from src.data.models.recruiter import Recruiter
 from src.schemas.invitation_schema import InvitationCreate, InvitationResponse
 
 router = APIRouter(prefix="/invitation", tags=["invitation"])
@@ -39,7 +38,7 @@ class InvitationRevokeResponse(BaseModel):
 async def create_invitation(
     payload: InvitationCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> InvitationCreateResponse:
     """Create and send a new invitation for a candidate.
 
@@ -74,7 +73,7 @@ async def create_invitation(
 )
 async def get_org_invitations(
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> list[InvitationResponse]:
     """Retrieve all invitations across the current organization.
 
@@ -98,7 +97,7 @@ async def get_org_invitations(
 async def revoke_invitation(
     invitation_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
+    current_user: CurrentRecruiter = Depends(get_current_recruiter),
 ) -> InvitationRevokeResponse:
     """Revoke an active invitation.
 

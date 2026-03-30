@@ -12,7 +12,7 @@ class AssessmentRepository:
     """Data-access layer for Assessment entities.
 
     Provides CRUD helpers that operate within the caller-supplied
-    async session, deferring commit control to the service layer.
+    async session, managing commits internally.
     """
 
     def __init__(self, session: AsyncSession) -> None:
@@ -29,7 +29,8 @@ class AssessmentRepository:
         """
         instance = Assessment(**assessment_data)
         self.session.add(instance)
-        await self.session.flush()
+        await self.session.commit()
+        await self.session.refresh(instance)
         return instance
 
     async def get_by_id(self, assessment_id: uuid.UUID) -> Assessment | None:
@@ -73,4 +74,5 @@ class AssessmentRepository:
             .returning(Assessment)
         )
         result = await self.session.execute(query)
+        await self.session.commit()
         return result.scalar_one()

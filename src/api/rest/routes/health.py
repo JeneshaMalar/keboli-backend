@@ -2,11 +2,10 @@
 
 import logging
 
+from typing import Any
 from fastapi import APIRouter, Depends
-from sqlalchemy import text
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from src.api.rest.dependencies import get_db
+from src.core.services.health_service import HealthService
 
 logger = logging.getLogger(__name__)
 
@@ -19,7 +18,7 @@ router = APIRouter(tags=["health"])
     description="Verify that the API and database connection are operational.",
 )
 async def health(
-    db: AsyncSession = Depends(get_db),
+    db: Any = Depends(get_db),
 ) -> dict[str, str]:
     """Check API and database health.
 
@@ -31,15 +30,12 @@ async def health(
     Returns:
         A dictionary with service and database status indicators.
     """
-    try:
-        await db.execute(text("SELECT 1"))
-        db_status = "healthy"
-    except ConnectionRefusedError:
-        logger.warning("Database connection refused during health check")
-        db_status = "unhealthy"
-    except OSError as e:
-        logger.warning("Database connectivity issue during health check: %s", e)
-        db_status = "unhealthy"
+    service = HealthService(db)
+    is_healthy = await service.check_db_connection()
+    db_status = "healthy" if is_healthy else "unhealthy"
+    
+    if not is_healthy:
+        logger.warning("Database connectivity issue during health check")
 
     return {
         "status": "healthy",
