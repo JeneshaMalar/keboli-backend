@@ -19,11 +19,11 @@ class LogCreate(BaseModel):
     service: str | None = None
     component: str | None = None
     event_type: str | None = None
-    session_id: str | None = None
-    candidate_id: str | None = None
-    assessment_id: str | None = None
-    user_id: str | None = None
-    request_id: str | None = None
+    session_id: UUID | str | None = None
+    candidate_id: UUID | str | None = None
+    assessment_id: UUID | str | None = None
+    user_id: UUID | str | None = None
+    request_id: UUID | str | None = None
     ip_address: str | None = None
     user_agent: str | None = None
     message: str

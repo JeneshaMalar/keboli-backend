@@ -78,7 +78,7 @@ class EvaluationService:
         session_id: uuid.UUID,
         evaluation_data: dict[str, Any],
     ) -> Evaluation:
-        """Persist an evaluation report from the external service.
+        """Persist or update an evaluation report from the external service.
 
         Args:
             session_id: UUID of the interview session.
@@ -88,12 +88,24 @@ class EvaluationService:
             The persisted Evaluation instance.
 
         Raises:
-            AppError: If saving the evaluation fails.
+            AppError: If saving or updating the evaluation fails.
         """
         try:
-            evaluation_data["session_id"] = session_id
-            evaluation = Evaluation(**evaluation_data)
-            self.session.add(evaluation)
+            query = select(Evaluation).where(Evaluation.session_id == session_id)
+            result = await self.session.execute(query)
+            evaluation = result.scalar_one_or_none()
+
+            if evaluation:
+                for key, value in evaluation_data.items():
+                    if hasattr(evaluation, key) and value is not None:
+                        setattr(evaluation, key, value)
+                logger.info("Updated existing evaluation for session %s", session_id)
+            else:
+                evaluation_data["session_id"] = session_id
+                evaluation = Evaluation(**evaluation_data)
+                self.session.add(evaluation)
+                logger.info("Created new evaluation for session %s", session_id)
+
             await self.session.commit()
             await self.session.refresh(evaluation)
             return evaluation

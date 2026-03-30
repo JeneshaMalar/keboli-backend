@@ -1,6 +1,7 @@
 """System log routes for persisting structured log entries from external services."""
 
 from fastapi import APIRouter, Depends, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.rest.dependencies import get_db

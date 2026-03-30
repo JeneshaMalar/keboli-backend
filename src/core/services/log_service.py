@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.core.exceptions import AppError
 from src.data.models.system_log import SystemLog
+from src.constants.enums import LogLevel
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +49,15 @@ class LogService:
             if log_data.get("details") is None:
                 log_data["details"] = {}
 
+            level_input = log_data.get("level")
+            if isinstance(level_input, str):
+                try:
+                    log_data["level"] = LogLevel(level_input.upper())
+                except ValueError:
+                    log_data["level"] = LogLevel.INFO
+            elif level_input is None:
+                log_data["level"] = LogLevel.INFO
+
             for field in uuid_fields:
                 val = log_data.get(field)
                 if val:
@@ -58,7 +68,22 @@ class LogService:
                         log_data["details"][f"original_{field}"] = str(val)
                         log_data[field] = None
 
-            new_log = SystemLog(**log_data)
+            if log_data.get("status"):
+                log_data["status"] = str(log_data["status"])[:50]
+
+          
+            valid_keys = {
+                "id", "timestamp", "level", "service", "component", "event_type",
+                "session_id", "candidate_id", "assessment_id", "user_id",
+                "request_id", "ip_address", "user_agent", "message", "details",
+                "error_stack", "duration_ms", "status"
+            }
+            sanitized_data = {
+                k: v for k, v in log_data.items()
+                if k in valid_keys and v is not None
+            }
+
+            new_log = SystemLog(**sanitized_data)
             self.session.add(new_log)
             await self.session.commit()
             await self.session.refresh(new_log)

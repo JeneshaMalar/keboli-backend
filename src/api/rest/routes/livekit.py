@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.rest.dependencies import get_current_recruiter, get_db
 from src.core.services.livekit_service import LiveKitService
 from src.data.models.recruiter import Recruiter
+from src.core.services.invitation_service import InvitationService
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class TokenRequest(BaseModel):
     session_id: uuid.UUID | None = None
     invitation_id: uuid.UUID | None = None
     assessment_id: uuid.UUID | None = None
+    invitation_token: str | None = None
 
 
 class HeartbeatRequest(BaseModel):
@@ -53,7 +55,8 @@ class SessionUpdateRequest(BaseModel):
     description="Generate or retrieve a LiveKit session token with room access grants.",
 )
 async def get_token(
-    payload: TokenRequest,
+    invitation_token: str | None = None,
+    payload: TokenRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> dict[str, Any]:
     """Generate a LiveKit access token for a session room.
@@ -62,18 +65,38 @@ async def get_token(
     assessment duration from invitations or assessments.
 
     Args:
+        invitation_token: Optional token from query params (legacy/convenience).
         payload: Token request containing session/invitation/assessment IDs.
         db: Async database session.
 
     Returns:
         Dictionary with session metadata and LiveKit token.
     """
-    session_id = payload.session_id or uuid.uuid4()
+    session_id = uuid.uuid4()
+    inv_id = None
+    ass_id = None
+
+    if payload:
+        session_id = payload.session_id or session_id
+        inv_id = payload.invitation_id
+        ass_id = payload.assessment_id
+        if not invitation_token:
+            invitation_token = payload.invitation_token
+
+    if invitation_token and not inv_id:
+
+        inv_service = InvitationService(db)
+        try:
+            invitation = await inv_service.validate_token(invitation_token)
+            inv_id = invitation.id
+        except Exception as e:
+            logger.warning(f"Failed to resolve invitation token {invitation_token}: {e}")
+
     service = LiveKitService(db)
     return await service.get_or_create_session(
         session_id=session_id,
-        invitation_id=payload.invitation_id,
-        assessment_id=payload.assessment_id,
+        invitation_id=inv_id,
+        assessment_id=ass_id,
     )
 
 
@@ -126,6 +149,13 @@ async def complete_session(
     return await service.complete_session(session_id=payload.session_id)
 
 
+class TranscriptAppendRequest(BaseModel):
+    """Request schema for appending a transcript turn."""
+
+    role: str
+    content: str
+
+
 @router.get(
     "/transcript/{session_id}",
     response_model=dict,
@@ -147,6 +177,59 @@ async def get_transcript(
     """
     service = LiveKitService(db)
     return await service.get_transcript(session_id=session_id)
+
+
+@router.post(
+    "/transcript/{session_id}/append",
+    response_model=dict,
+    status_code=status.HTTP_201_CREATED,
+    summary="Append transcript",
+    description="Append a new conversation turn (interviewer/candidate) to the session transcript.",
+)
+async def append_transcript(
+    session_id: uuid.UUID,
+    payload: TranscriptAppendRequest,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Append a new conversational turn to the session transcript.
+
+    Args:
+        session_id: UUID of the interview session.
+        payload: Conversation turn containing role and content.
+        db: Async database session.
+
+    Returns:
+        Status confirmation.
+    """
+    service = LiveKitService(db)
+    return await service.append_transcript(
+        session_id=session_id,
+        role=payload.role,
+        content=payload.content,
+    )
+
+
+@router.get(
+    "/session/{session_id}",
+    response_model=dict,
+    summary="Get session details",
+    description="Retrieve full session and linked assessment details for evaluation.",
+)
+async def get_session(
+    session_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Retrieve interview session and assessment data.
+
+    Args:
+        session_id: UUID of the interview session.
+        db: Async database session.
+
+    Returns:
+        Dictionary with session metadata and assessment details.
+    """
+    service = LiveKitService(db)
+    return await service.get_session_field(session_id=session_id)
 
 
 @router.post(

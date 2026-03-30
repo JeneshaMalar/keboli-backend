@@ -8,6 +8,7 @@ from sqlalchemy.orm import joinedload, selectinload
 
 from src.data.models.candidate import Candidate
 from src.data.models.invitation import Invitation
+from src.data.models.interview_session import InterviewSession
 
 
 class InvitationRepository:
@@ -43,11 +44,16 @@ class InvitationRepository:
         Returns:
             The Invitation with candidate and assessment loaded, or None.
         """
+
         query = (
             select(Invitation)
             .where(Invitation.id == invitation_id)
             .options(
-                joinedload(Invitation.candidate), joinedload(Invitation.assessment)
+                joinedload(Invitation.candidate),
+                joinedload(Invitation.assessment),
+                selectinload(Invitation.sessions).selectinload(
+                    InterviewSession.evaluation
+                ),
             )
         )
         result = await self.session.execute(query)
@@ -62,11 +68,16 @@ class InvitationRepository:
         Returns:
             The Invitation with candidate and assessment loaded, or None.
         """
+
         query = (
             select(Invitation)
             .where(Invitation.token == token)
             .options(
-                joinedload(Invitation.candidate), joinedload(Invitation.assessment)
+                joinedload(Invitation.candidate),
+                joinedload(Invitation.assessment),
+                selectinload(Invitation.sessions).selectinload(
+                    InterviewSession.evaluation
+                ),
             )
         )
         result = await self.session.execute(query)
@@ -81,7 +92,6 @@ class InvitationRepository:
         Returns:
             List of invitations with candidate, session, and evaluation data loaded.
         """
-        from src.data.models.interview_session import InterviewSession
 
         query = (
             select(Invitation)
@@ -89,6 +99,7 @@ class InvitationRepository:
             .where(Candidate.org_id == org_id)
             .options(
                 joinedload(Invitation.candidate),
+                joinedload(Invitation.assessment),
                 selectinload(Invitation.sessions).selectinload(
                     InterviewSession.evaluation
                 ),

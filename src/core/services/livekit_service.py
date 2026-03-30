@@ -21,6 +21,8 @@ from src.data.models.transcript import Transcript
 from src.data.repositories.interview_transcript_repo import (
     InterviewTranscriptRepository,
 )
+from src.core.services.evaluation_service import EvaluationService
+
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +66,13 @@ class LiveKitService:
         existing = await self.session.get(InterviewSession, session_id)
 
         if existing:
-            token = self._generate_token(str(session_id))
+            ass_id = "unknown"
+            if existing.invitation_id:
+                inv = await self.session.get(Invitation, existing.invitation_id)
+                if inv and inv.assessment_id:
+                    ass_id = str(inv.assessment_id)
+            room_name = f"interview_{session_id}_{ass_id}"
+            token = self._generate_token(str(session_id), room_name)
             return {
                 "session_id": str(existing.id),
                 "status": existing.status.value,
@@ -108,7 +116,8 @@ class LiveKitService:
         await self.session.commit()
         await self.session.refresh(new_session)
 
-        token = self._generate_token(str(session_id))
+        room_name = f"interview_{session_id}_{resolved_assessment_id}"
+        token = self._generate_token(str(session_id), room_name)
         return {
             "session_id": str(new_session.id),
             "status": new_session.status.value,
@@ -117,11 +126,12 @@ class LiveKitService:
             "livekit_url": settings.LIVEKIT_URL,
         }
 
-    def _generate_token(self, session_id: str) -> str:
+    def _generate_token(self, session_id: str, room_name: str) -> str:
         """Generate a LiveKit access token for the given session room.
 
         Args:
-            session_id: The room name (session UUID string).
+            session_id: The session UUID string.
+            room_name: The correctly formatted room name to join.
 
         Returns:
             A signed JWT token string for LiveKit authentication.
@@ -134,7 +144,7 @@ class LiveKitService:
         token.with_grants(
             VideoGrants(
                 room_join=True,
-                room=session_id,
+                room=room_name,
             )
         )
         return token.to_jwt()
@@ -206,6 +216,14 @@ class LiveKitService:
             await self.session.execute(inv_query)
 
         await self.session.commit()
+        
+        try:
+            eval_service = EvaluationService(self.session)
+            await eval_service.trigger_evaluation(session_id)
+            logger.info("Evaluation triggered successfully for session %s", session_id)
+        except Exception as e:
+            logger.error("Failed to trigger evaluation for session %s: %s", session_id, e)
+
         return {"status": "completed", "session_id": str(session_id)}
 
     async def get_transcript(
@@ -225,6 +243,78 @@ class LiveKitService:
             "session_id": str(session_id),
             "full_transcript": transcript.full_transcript if transcript else [],
             "turn_count": transcript.turn_count if transcript else 0,
+        }
+
+    async def append_transcript(
+        self,
+        session_id: uuid.UUID,
+        role: str,
+        content: str,
+    ) -> dict[str, Any]:
+        """Append a new turn to the interview transcript.
+
+        Args:
+            session_id: UUID of the interview session.
+            role: Speaker role ('interviewer' or 'candidate').
+            content: The text spoken in this turn.
+
+        Returns:
+            A status confirmation with the new turn count.
+        """
+        await self.transcript_repo.append_turn(
+            session_id=session_id, role=role, text=content
+        )
+        return {"status": "appended", "session_id": str(session_id)}
+
+    async def get_session_field(
+        self,
+        session_id: uuid.UUID,
+    ) -> dict[str, Any]:
+        """Retrieve full session and assessment details for evaluation.
+
+        Args:
+            session_id: UUID of the interview session.
+
+        Returns:
+            A dictionary containing session, candidate, and assessment data.
+
+        Raises:
+            NotFoundError: If the session is not found.
+        """
+        query = (
+            select(InterviewSession)
+            .where(InterviewSession.id == session_id)
+            .options(
+                joinedload(InterviewSession.invitation).joinedload(
+                    Invitation.assessment
+                ),
+                joinedload(InterviewSession.invitation).joinedload(
+                    Invitation.candidate
+                ),
+            )
+        )
+        result = await self.session.execute(query)
+        session = result.scalar_one_or_none()
+
+        if not session:
+            raise NotFoundError(resource="InterviewSession", resource_id=str(session_id))
+
+        assessment_data = {}
+        if session.invitation and session.invitation.assessment:
+            asmt = session.invitation.assessment
+            assessment_data = {
+                "id": str(asmt.id),
+                "title": asmt.title,
+                "job_description": asmt.job_description,
+                "skill_graph": asmt.skill_graph,
+                "passing_score": asmt.passing_score,
+            }
+
+        return {
+            "session_id": str(session.id),
+            "status": session.status.value,
+            "candidate_id": str(session.candidate_id),
+            "assessment_details": assessment_data,
         }
 
     async def update_session_field(
