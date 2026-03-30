@@ -15,7 +15,7 @@ from src.schemas.evaluation_schema import (
     EvaluationUpdate,
 )
 
-router = APIRouter(prefix="/evaluations", tags=["evaluations"])
+router = APIRouter(prefix="/evaluation", tags=["evaluation"])
 
 
 @router.post(

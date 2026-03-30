@@ -11,15 +11,15 @@ from src.constants.enums import HiringRecommendation
 class EvaluationCreate(BaseModel):
     """Schema for creating or submitting an evaluation report."""
 
-    technical_score: float
-    communication_score: float
-    confidence_score: float
-    cultural_alignment_score: float
-    total_score: float
-    score_breakdown: dict[str, object]
-    ai_summary: str
+    technical_score: float | None = None
+    communication_score: float | None = None
+    confidence_score: float | None = None
+    cultural_alignment_score: float | None = None
+    total_score: float | None = None
+    score_breakdown: dict[str, object] | None = None
+    ai_summary: str | None = None
     ai_explanation: str | None = None
-    hiring_recommendation: HiringRecommendation
+    hiring_recommendation: HiringRecommendation | None = None
     admin_recommendation: HiringRecommendation | None = None
     admin_notes: str | None = None
     is_tie_winner: bool = False

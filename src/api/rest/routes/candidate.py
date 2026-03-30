@@ -10,7 +10,7 @@ from src.core.services.candidate_service import CandidateService
 from src.data.models.recruiter import Recruiter
 from src.schemas.candidate_schema import CandidateResponse
 
-router = APIRouter(prefix="/candidates", tags=["candidates"])
+router = APIRouter(prefix="/candidate", tags=["candidate"])
 
 
 @router.post(
@@ -44,9 +44,9 @@ async def create_candidate(
 
 
 @router.get(
-    "/",
+    "/org-candidates",
     response_model=list[CandidateResponse],
-    summary="List candidates",
+    summary="List organization candidates",
     description="Retrieve all candidates belonging to the authenticated user's organization.",
 )
 async def get_candidates(

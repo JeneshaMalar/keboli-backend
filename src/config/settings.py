@@ -58,8 +58,8 @@ class Settings(BaseSettings):
     CORS_ALLOW_HEADERS: list[str] = ["*"]
 
     COOKIE_NAME: str = "access_token"
-    COOKIE_SECURE: bool = True
-    COOKIE_SAMESITE: str = "none"
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "lax"
     COOKIE_DOMAIN: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}

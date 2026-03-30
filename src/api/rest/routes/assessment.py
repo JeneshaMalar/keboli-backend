@@ -17,7 +17,7 @@ from src.schemas.assessment_schema import (
     AssessmentUpdate,
 )
 
-router = APIRouter(prefix="/assessments", tags=["assessments"])
+router = APIRouter(prefix="/assessment", tags=["assessment"])
 
 
 class SkillGraphUpdate(BaseModel):
@@ -56,7 +56,7 @@ async def create_new_assessment(
 
 
 @router.get(
-    "/",
+    "/org-assessments",
     response_model=list[AssessmentResponse],
     summary="List organization assessments",
     description="List all assessments belonging to the authenticated user's organization.",
@@ -88,14 +88,12 @@ async def get_org_assessments(
 async def get_assessment(
     assessment_id: uuid.UUID,
     db: AsyncSession = Depends(get_db),
-    current_user: Recruiter = Depends(get_current_recruiter),
 ) -> AssessmentResponse:
     """Retrieve a single assessment by its UUID.
 
     Args:
         assessment_id: UUID of the assessment to retrieve.
         db: Async database session.
-        current_user: The authenticated recruiter making the request.
 
     Returns:
         The requested assessment details.

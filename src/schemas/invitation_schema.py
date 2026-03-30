@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict
 
 from src.constants.enums import InvitationStatus
 from src.schemas.candidate_schema import CandidateResponse
+from src.schemas.assessment_schema import AssessmentResponse
 
 
 class InvitationCreate(BaseModel):
@@ -33,5 +34,6 @@ class InvitationResponse(BaseModel):
     hiring_recommendation: str | None = None
 
     candidate: CandidateResponse | None = None
+    assessment: AssessmentResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)

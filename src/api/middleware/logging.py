@@ -1,11 +1,9 @@
-"""HTTP request/response logging middleware with async database persistence."""
-
 import asyncio
 import time
 import uuid
 
-from fastapi import Request, Response
-from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
+from fastapi import Request
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from src.constants.enums import LogLevel
 from src.data.database.session import async_session_factory
@@ -13,73 +11,49 @@ from src.data.models.system_log import SystemLog
 from src.observability.logging.logger import logger
 
 
-class LoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware that intercepts every request to log method, path, status, and duration.
+class LoggingMiddleware:
+    """ASGI middleware that logs HTTP requests and responses.
 
-    Logs are persisted asynchronously to the SystemLog table so that
-    logging failures do not impact request processing.
+    Logs are persisted asynchronously to the SystemLog table.
+    This pure ASGI implementation avoids the ContextVar issues
+    associated with Starlette's BaseHTTPMiddleware.
     """
 
-    async def dispatch(
-        self, request: Request, call_next: RequestResponseEndpoint
-    ) -> Response:
-        """Intercept incoming requests, log details, and handle exceptions gracefully.
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        """Process an ASGI request-response cycle.
 
         Args:
-            request: The incoming HTTP request.
-            call_next: Callable that forwards the request to the next middleware/route.
-
-        Returns:
-            The HTTP response from downstream handlers.
+            scope: The ASGI scope (connection metadata).
+            receive: Callable to receive messages from the client.
+            send: Callable to send messages to the client.
         """
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
         start_time = time.time()
         request_id = uuid.uuid4()
+        request = Request(scope)
 
-        ip_address: str | None = request.client.host if request.client else None
-        user_agent: str | None = request.headers.get("user-agent")
-        path: str = request.url.path
-        method: str = request.method
+        ip_address = request.client.host if request.client else None
+        user_agent = request.headers.get("user-agent")
+        path = request.url.path
+        method = request.method
+
+        status_code = [500]  # Default until we see the start message
+
+        async def send_wrapper(message: dict) -> None:
+            if message["type"] == "http.response.start":
+                status_code[0] = message["status"]
+            await send(message)
 
         try:
-            response: Response = await call_next(request)
-
-            end_time = time.time()
-            duration_ms = int((end_time - start_time) * 1000)
-            status_code = response.status_code
-
-            level = (
-                LogLevel.INFO
-                if status_code < 400
-                else (LogLevel.WARNING if status_code < 500 else LogLevel.ERROR)
-            )
-            message = f"{method} {path} - {status_code}"
-
-            asyncio.create_task(
-                self._save_log(
-                    level=level,
-                    service="backend_main",
-                    component="middleware",
-                    event_type="http_request",
-                    request_id=request_id,
-                    ip_address=ip_address,
-                    user_agent=user_agent,
-                    message=message,
-                    duration_ms=duration_ms,
-                    status=str(status_code),
-                    details={
-                        "path": path,
-                        "method": method,
-                        "query": str(request.query_params),
-                    },
-                )
-            )
-
-            return response
-
+            await self.app(scope, receive, send_wrapper)
         except Exception as e:
-            end_time = time.time()
-            duration_ms = int((end_time - start_time) * 1000)
-
+            duration_ms = int((time.time() - start_time) * 1000)
             asyncio.create_task(
                 self._save_log(
                     level=LogLevel.ERROR,
@@ -101,6 +75,34 @@ class LoggingMiddleware(BaseHTTPMiddleware):
                 )
             )
             raise
+        else:
+            duration_ms = int((time.time() - start_time) * 1000)
+            final_status = status_code[0]
+            level = (
+                LogLevel.INFO
+                if final_status < 400
+                else (LogLevel.WARNING if final_status < 500 else LogLevel.ERROR)
+            )
+
+            asyncio.create_task(
+                self._save_log(
+                    level=level,
+                    service="backend_main",
+                    component="middleware",
+                    event_type="http_request",
+                    request_id=request_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    message=f"{method} {path} - {final_status}",
+                    duration_ms=duration_ms,
+                    status=str(final_status),
+                    details={
+                        "path": path,
+                        "method": method,
+                        "query": str(request.query_params),
+                    },
+                )
+            )
 
     @staticmethod
     async def _save_log(**kwargs: object) -> None:
